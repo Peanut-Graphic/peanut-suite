@@ -3,7 +3,7 @@
  * Plugin Name: Peanut Suite
  * Plugin URI: https://peanutgraphic.com/peanut-suite
  * Description: Complete marketing toolkit - UTM campaigns, link management, lead tracking, and analytics in one unified dashboard.
- * Version: 4.1.3
+ * Version: 4.1.5
  * Author: Peanut Graphic
  * Author URI: https://peanutgraphic.com
  * License: GPL-2.0+
@@ -26,8 +26,8 @@ if (defined('PEANUT_VERSION')) {
 /**
  * Plugin constants
  */
-define('PEANUT_VERSION', '4.1.3');
-define('PEANUT_SUITE_VERSION', '4.1.3'); // Alias for updater
+define('PEANUT_VERSION', '4.1.5');
+define('PEANUT_SUITE_VERSION', '4.1.5'); // Alias for updater
 define('PEANUT_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('PEANUT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('PEANUT_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -37,6 +37,15 @@ define('PEANUT_API_NAMESPACE', 'peanut/v1');
 
 // Table prefix
 define('PEANUT_TABLE_PREFIX', 'peanut_');
+
+/**
+ * Check if Suite is disabled by Peanut Connect Hub Mode
+ * When Hub Mode is set to 'disable_suite', Connect sets this filter to true
+ */
+if (apply_filters('peanut_suite_disabled', false)) {
+    // Suite is disabled - don't load anything
+    return;
+}
 
 /**
  * Load traits (not autoloadable)
@@ -373,9 +382,11 @@ add_action('wp_ajax_peanut_complete_feature_tour', 'peanut_ajax_complete_feature
 
 /**
  * Initialize self-hosted updater
+ * Uses 'init' hook instead of 'admin_init' to ensure updates work
+ * in all contexts (admin, WP-CLI, cron)
  */
 function peanut_init_updater(): void {
     require_once PEANUT_PLUGIN_DIR . 'core/services/class-peanut-updater.php';
     new Peanut_Updater();
 }
-add_action('admin_init', 'peanut_init_updater');
+add_action('init', 'peanut_init_updater');

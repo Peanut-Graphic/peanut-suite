@@ -14,7 +14,7 @@ class Peanut_Updater {
     /**
      * Update server API URL
      */
-    private const API_URL = 'https://peanutgraphic.com/wp-json/peanut-api/v1';
+    private const API_URL = 'https://www.peanutgraphic.com/wp-json/peanut-api/v1';
 
     /**
      * Plugin slug
