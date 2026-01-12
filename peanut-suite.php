@@ -3,7 +3,7 @@
  * Plugin Name: Peanut Suite
  * Plugin URI: https://peanutgraphic.com/peanut-suite
  * Description: Complete marketing toolkit - UTM campaigns, link management, lead tracking, and analytics in one unified dashboard.
- * Version: 4.1.5
+ * Version: 4.1.6
  * Author: Peanut Graphic
  * Author URI: https://peanutgraphic.com
  * License: GPL-2.0+
@@ -26,8 +26,8 @@ if (defined('PEANUT_VERSION')) {
 /**
  * Plugin constants
  */
-define('PEANUT_VERSION', '4.1.5');
-define('PEANUT_SUITE_VERSION', '4.1.5'); // Alias for updater
+define('PEANUT_VERSION', '4.1.6');
+define('PEANUT_SUITE_VERSION', '4.1.6'); // Alias for updater
 define('PEANUT_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('PEANUT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('PEANUT_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -118,10 +118,10 @@ function peanut_deactivate() {
 register_deactivation_hook(__FILE__, 'peanut_deactivate');
 
 /**
- * Initialize the plugin
+ * Initialize the plugin (on init for WordPress 6.7+ translation compatibility)
  */
 function peanut_init() {
-    // Load text domain
+    // Load text domain first
     load_plugin_textdomain(
         'peanut-suite',
         false,
@@ -136,7 +136,7 @@ function peanut_init() {
     // Fire action for add-ons to hook into
     do_action('peanut_loaded');
 }
-add_action('plugins_loaded', 'peanut_init');
+add_action('init', 'peanut_init');
 
 /**
  * Helper: Get active modules
