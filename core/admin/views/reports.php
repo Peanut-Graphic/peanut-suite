@@ -39,34 +39,35 @@ $report_log = array_reverse($report_log);
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['peanut_reports_nonce'])) {
-    if (wp_verify_nonce($_POST['peanut_reports_nonce'], 'peanut_save_reports')) {
-        $settings['enabled'] = isset($_POST['enabled']);
-        $settings['frequency'] = sanitize_key($_POST['frequency'] ?? 'weekly');
-        $settings['day_of_week'] = absint($_POST['day_of_week'] ?? 1) % 7;
-        $settings['day_of_month'] = min(28, max(1, absint($_POST['day_of_month'] ?? 1)));
-        $settings['time'] = sanitize_text_field($_POST['time'] ?? '08:00');
-        $settings['attach_pdf'] = isset($_POST['attach_pdf']);
-
-        // Recipients
-        $recipients_raw = sanitize_textarea_field($_POST['recipients'] ?? '');
-        $settings['recipients'] = array_filter(array_map('trim', explode("\n", $recipients_raw)));
-
-        // Sections
-        $sections = ['overview', 'utm_campaigns', 'links', 'contacts', 'visitors', 'top_performers'];
-        foreach ($sections as $section) {
-            $settings['include_sections'][$section] = isset($_POST['include_' . $section]);
-        }
-
-        // Branding
-        $settings['custom_logo'] = esc_url_raw($_POST['custom_logo'] ?? '');
-        $settings['custom_footer'] = sanitize_text_field($_POST['custom_footer'] ?? '');
-
-        update_option('peanut_reports_settings', $settings);
-        echo '<div class="notice notice-success"><p>' . esc_html__('Report settings saved.', 'peanut-suite') . '</p></div>';
-
-        // Refresh next scheduled
-        $next_scheduled = wp_next_scheduled('peanut_send_digest_report');
+    if ( ! wp_verify_nonce( sanitize_key( $_POST['peanut_reports_nonce'] ), 'peanut_save_reports' ) ) {
+        wp_die( __( 'Security check failed.', 'peanut-suite' ), 403 );
     }
+    $settings['enabled'] = isset($_POST['enabled']);
+    $settings['frequency'] = sanitize_key($_POST['frequency'] ?? 'weekly');
+    $settings['day_of_week'] = absint($_POST['day_of_week'] ?? 1) % 7;
+    $settings['day_of_month'] = min(28, max(1, absint($_POST['day_of_month'] ?? 1)));
+    $settings['time'] = sanitize_text_field($_POST['time'] ?? '08:00');
+    $settings['attach_pdf'] = isset($_POST['attach_pdf']);
+
+    // Recipients
+    $recipients_raw = sanitize_textarea_field($_POST['recipients'] ?? '');
+    $settings['recipients'] = array_filter(array_map('trim', explode("\n", $recipients_raw)));
+
+    // Sections
+    $sections = ['overview', 'utm_campaigns', 'links', 'contacts', 'visitors', 'top_performers'];
+    foreach ($sections as $section) {
+        $settings['include_sections'][$section] = isset($_POST['include_' . $section]);
+    }
+
+    // Branding
+    $settings['custom_logo'] = esc_url_raw($_POST['custom_logo'] ?? '');
+    $settings['custom_footer'] = sanitize_text_field($_POST['custom_footer'] ?? '');
+
+    update_option('peanut_reports_settings', $settings);
+    echo '<div class="notice notice-success"><p>' . esc_html__('Report settings saved.', 'peanut-suite') . '</p></div>';
+
+    // Refresh next scheduled
+    $next_scheduled = wp_next_scheduled('peanut_send_digest_report');
 }
 
 // Days of week

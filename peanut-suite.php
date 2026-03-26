@@ -348,6 +348,7 @@ add_action('wp_ajax_peanut_clear_error_log', 'peanut_ajax_clear_error_log');
  * AJAX: Dismiss welcome message
  */
 function peanut_ajax_dismiss_welcome(): void {
+    check_ajax_referer('peanut_dismiss_welcome', 'nonce');
     if (!current_user_can('manage_options')) {
         wp_send_json_error('Permission denied');
     }
@@ -361,6 +362,7 @@ add_action('wp_ajax_peanut_dismiss_welcome', 'peanut_ajax_dismiss_welcome');
  * AJAX: Complete feature tour
  */
 function peanut_ajax_complete_feature_tour(): void {
+    check_ajax_referer('peanut_complete_feature_tour', 'nonce');
     if (!current_user_can('read')) {
         wp_send_json_error('Permission denied');
     }

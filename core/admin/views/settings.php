@@ -20,103 +20,104 @@ $settings = get_option('peanut_settings', []);
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['peanut_settings_nonce'])) {
-    if (wp_verify_nonce($_POST['peanut_settings_nonce'], 'peanut_save_settings')) {
-        // Process based on tab
-        switch ($current_tab) {
-            case 'general':
-                $settings['site_name'] = sanitize_text_field($_POST['site_name'] ?? '');
-                $settings['short_domain'] = sanitize_text_field($_POST['short_domain'] ?? '');
-                $settings['timezone'] = sanitize_text_field($_POST['timezone'] ?? 'UTC');
+    if ( ! wp_verify_nonce( sanitize_key( $_POST['peanut_settings_nonce'] ), 'peanut_save_settings' ) ) {
+        wp_die( __( 'Security check failed.', 'peanut-suite' ), 403 );
+    }
+    // Process based on tab
+    switch ($current_tab) {
+        case 'general':
+            $settings['site_name'] = sanitize_text_field($_POST['site_name'] ?? '');
+            $settings['short_domain'] = sanitize_text_field($_POST['short_domain'] ?? '');
+            $settings['timezone'] = sanitize_text_field($_POST['timezone'] ?? 'UTC');
+            update_option('peanut_settings', $settings);
+            echo '<div class="notice notice-success"><p>' . esc_html__('Settings saved.', 'peanut-suite') . '</p></div>';
+            break;
+
+        case 'license':
+            $license_key = sanitize_text_field($_POST['license_key'] ?? '');
+            if ($license_key) {
+                // Activate license
+                require_once PEANUT_PLUGIN_DIR . 'core/services/class-peanut-license.php';
+                $license_service = new Peanut_License();
+                $result = $license_service->activate($license_key);
+                if (($result['status'] ?? '') === 'active') {
+                    $license = peanut_get_license(); // Refresh
+                    // Redirect to refresh the page and show updated menu
+                    wp_redirect(admin_url('admin.php?page=peanut-settings&tab=license&activated=1'));
+                    exit;
+                } else {
+                    echo '<div class="notice notice-error"><p>' . esc_html($result['message'] ?? __('Failed to activate license.', 'peanut-suite')) . '</p></div>';
+                }
+            }
+            break;
+
+        case 'integrations':
+            // Check which section is being saved
+            $section = sanitize_key($_POST['settings_section'] ?? '');
+
+            if ($section === 'stripe') {
+                $settings['stripe_secret_key'] = sanitize_text_field($_POST['stripe_secret_key'] ?? '');
+                $settings['stripe_webhook_secret'] = sanitize_text_field($_POST['stripe_webhook_secret'] ?? '');
+                $settings['invoice_currency'] = sanitize_text_field($_POST['invoice_currency'] ?? 'USD');
+                $settings['invoice_due_days'] = absint($_POST['invoice_due_days'] ?? 30);
+                $settings['invoice_footer'] = sanitize_textarea_field($_POST['invoice_footer'] ?? '');
                 update_option('peanut_settings', $settings);
-                echo '<div class="notice notice-success"><p>' . esc_html__('Settings saved.', 'peanut-suite') . '</p></div>';
-                break;
+                echo '<div class="notice notice-success"><p>' . esc_html__('Stripe settings saved.', 'peanut-suite') . '</p></div>';
+            }
 
-            case 'license':
-                $license_key = sanitize_text_field($_POST['license_key'] ?? '');
-                if ($license_key) {
-                    // Activate license
-                    require_once PEANUT_PLUGIN_DIR . 'core/services/class-peanut-license.php';
-                    $license_service = new Peanut_License();
-                    $result = $license_service->activate($license_key);
-                    if (($result['status'] ?? '') === 'active') {
-                        $license = peanut_get_license(); // Refresh
-                        // Redirect to refresh the page and show updated menu
-                        wp_redirect(admin_url('admin.php?page=peanut-settings&tab=license&activated=1'));
-                        exit;
-                    } else {
-                        echo '<div class="notice notice-error"><p>' . esc_html($result['message'] ?? __('Failed to activate license.', 'peanut-suite')) . '</p></div>';
-                    }
-                }
-                break;
-
-            case 'integrations':
-                // Check which section is being saved
-                $section = sanitize_key($_POST['settings_section'] ?? '');
-
-                if ($section === 'stripe') {
-                    $settings['stripe_secret_key'] = sanitize_text_field($_POST['stripe_secret_key'] ?? '');
-                    $settings['stripe_webhook_secret'] = sanitize_text_field($_POST['stripe_webhook_secret'] ?? '');
-                    $settings['invoice_currency'] = sanitize_text_field($_POST['invoice_currency'] ?? 'USD');
-                    $settings['invoice_due_days'] = absint($_POST['invoice_due_days'] ?? 30);
-                    $settings['invoice_footer'] = sanitize_textarea_field($_POST['invoice_footer'] ?? '');
-                    update_option('peanut_settings', $settings);
-                    echo '<div class="notice notice-success"><p>' . esc_html__('Stripe settings saved.', 'peanut-suite') . '</p></div>';
-                }
-
-                if ($section === 'ga4') {
-                    $settings['ga4_enabled'] = isset($_POST['ga4_enabled']) ? 1 : 0;
-                    $settings['ga4_measurement_id'] = sanitize_text_field($_POST['ga4_measurement_id'] ?? '');
-                    $settings['ga4_api_secret'] = sanitize_text_field($_POST['ga4_api_secret'] ?? '');
-                    update_option('peanut_settings', $settings);
-                    echo '<div class="notice notice-success"><p>' . esc_html__('Google Analytics 4 settings saved.', 'peanut-suite') . '</p></div>';
-                }
-
-                if ($section === 'gtm') {
-                    $settings['gtm_enabled'] = isset($_POST['gtm_enabled']) ? 1 : 0;
-                    $settings['gtm_container_id'] = strtoupper(sanitize_text_field($_POST['gtm_container_id'] ?? ''));
-                    $settings['gtm_track_contacts'] = isset($_POST['gtm_track_contacts']) ? 1 : 0;
-                    $settings['gtm_track_links'] = isset($_POST['gtm_track_links']) ? 1 : 0;
-                    $settings['gtm_track_popups'] = isset($_POST['gtm_track_popups']) ? 1 : 0;
-                    $settings['gtm_track_utm'] = isset($_POST['gtm_track_utm']) ? 1 : 0;
-                    update_option('peanut_settings', $settings);
-                    echo '<div class="notice notice-success"><p>' . esc_html__('Google Tag Manager settings saved.', 'peanut-suite') . '</p></div>';
-                }
-
-                if ($section === 'mailchimp') {
-                    $settings['mailchimp_enabled'] = isset($_POST['mailchimp_enabled']) ? 1 : 0;
-                    $settings['mailchimp_api_key'] = sanitize_text_field($_POST['mailchimp_api_key'] ?? '');
-                    $settings['mailchimp_list_id'] = sanitize_text_field($_POST['mailchimp_list_id'] ?? '');
-                    $settings['mailchimp_double_optin'] = isset($_POST['mailchimp_double_optin']) ? 1 : 0;
-                    $settings['mailchimp_tags'] = sanitize_text_field($_POST['mailchimp_tags'] ?? '');
-                    update_option('peanut_settings', $settings);
-                    echo '<div class="notice notice-success"><p>' . esc_html__('Mailchimp settings saved.', 'peanut-suite') . '</p></div>';
-                }
-
-                if ($section === 'convertkit') {
-                    $settings['convertkit_enabled'] = isset($_POST['convertkit_enabled']) ? 1 : 0;
-                    $settings['convertkit_api_key'] = sanitize_text_field($_POST['convertkit_api_key'] ?? '');
-                    $settings['convertkit_api_secret'] = sanitize_text_field($_POST['convertkit_api_secret'] ?? '');
-                    $settings['convertkit_form_id'] = sanitize_text_field($_POST['convertkit_form_id'] ?? '');
-                    $settings['convertkit_tags'] = sanitize_text_field($_POST['convertkit_tags'] ?? '');
-                    update_option('peanut_settings', $settings);
-                    echo '<div class="notice notice-success"><p>' . esc_html__('ConvertKit settings saved.', 'peanut-suite') . '</p></div>';
-                }
-                break;
-
-            case 'notifications':
-                $settings['email_notifications'] = isset($_POST['email_notifications']) ? 1 : 0;
-                $settings['notification_email'] = sanitize_email($_POST['notification_email'] ?? '');
+            if ($section === 'ga4') {
+                $settings['ga4_enabled'] = isset($_POST['ga4_enabled']) ? 1 : 0;
+                $settings['ga4_measurement_id'] = sanitize_text_field($_POST['ga4_measurement_id'] ?? '');
+                $settings['ga4_api_secret'] = sanitize_text_field($_POST['ga4_api_secret'] ?? '');
                 update_option('peanut_settings', $settings);
-                echo '<div class="notice notice-success"><p>' . esc_html__('Notification settings saved.', 'peanut-suite') . '</p></div>';
-                break;
+                echo '<div class="notice notice-success"><p>' . esc_html__('Google Analytics 4 settings saved.', 'peanut-suite') . '</p></div>';
+            }
 
-            case 'advanced':
-                $settings['delete_data'] = isset($_POST['delete_data']) ? 1 : 0;
-                $settings['debug_mode'] = isset($_POST['debug_mode']) ? 1 : 0;
+            if ($section === 'gtm') {
+                $settings['gtm_enabled'] = isset($_POST['gtm_enabled']) ? 1 : 0;
+                $settings['gtm_container_id'] = strtoupper(sanitize_text_field($_POST['gtm_container_id'] ?? ''));
+                $settings['gtm_track_contacts'] = isset($_POST['gtm_track_contacts']) ? 1 : 0;
+                $settings['gtm_track_links'] = isset($_POST['gtm_track_links']) ? 1 : 0;
+                $settings['gtm_track_popups'] = isset($_POST['gtm_track_popups']) ? 1 : 0;
+                $settings['gtm_track_utm'] = isset($_POST['gtm_track_utm']) ? 1 : 0;
                 update_option('peanut_settings', $settings);
-                echo '<div class="notice notice-success"><p>' . esc_html__('Advanced settings saved.', 'peanut-suite') . '</p></div>';
-                break;
-        }
+                echo '<div class="notice notice-success"><p>' . esc_html__('Google Tag Manager settings saved.', 'peanut-suite') . '</p></div>';
+            }
+
+            if ($section === 'mailchimp') {
+                $settings['mailchimp_enabled'] = isset($_POST['mailchimp_enabled']) ? 1 : 0;
+                $settings['mailchimp_api_key'] = sanitize_text_field($_POST['mailchimp_api_key'] ?? '');
+                $settings['mailchimp_list_id'] = sanitize_text_field($_POST['mailchimp_list_id'] ?? '');
+                $settings['mailchimp_double_optin'] = isset($_POST['mailchimp_double_optin']) ? 1 : 0;
+                $settings['mailchimp_tags'] = sanitize_text_field($_POST['mailchimp_tags'] ?? '');
+                update_option('peanut_settings', $settings);
+                echo '<div class="notice notice-success"><p>' . esc_html__('Mailchimp settings saved.', 'peanut-suite') . '</p></div>';
+            }
+
+            if ($section === 'convertkit') {
+                $settings['convertkit_enabled'] = isset($_POST['convertkit_enabled']) ? 1 : 0;
+                $settings['convertkit_api_key'] = sanitize_text_field($_POST['convertkit_api_key'] ?? '');
+                $settings['convertkit_api_secret'] = sanitize_text_field($_POST['convertkit_api_secret'] ?? '');
+                $settings['convertkit_form_id'] = sanitize_text_field($_POST['convertkit_form_id'] ?? '');
+                $settings['convertkit_tags'] = sanitize_text_field($_POST['convertkit_tags'] ?? '');
+                update_option('peanut_settings', $settings);
+                echo '<div class="notice notice-success"><p>' . esc_html__('ConvertKit settings saved.', 'peanut-suite') . '</p></div>';
+            }
+            break;
+
+        case 'notifications':
+            $settings['email_notifications'] = isset($_POST['email_notifications']) ? 1 : 0;
+            $settings['notification_email'] = sanitize_email($_POST['notification_email'] ?? '');
+            update_option('peanut_settings', $settings);
+            echo '<div class="notice notice-success"><p>' . esc_html__('Notification settings saved.', 'peanut-suite') . '</p></div>';
+            break;
+
+        case 'advanced':
+            $settings['delete_data'] = isset($_POST['delete_data']) ? 1 : 0;
+            $settings['debug_mode'] = isset($_POST['debug_mode']) ? 1 : 0;
+            update_option('peanut_settings', $settings);
+            echo '<div class="notice notice-success"><p>' . esc_html__('Advanced settings saved.', 'peanut-suite') . '</p></div>';
+            break;
     }
 }
 

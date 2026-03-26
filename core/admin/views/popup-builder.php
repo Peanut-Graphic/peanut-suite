@@ -37,47 +37,48 @@ $settings = is_string($popup['settings'] ?? '') ? json_decode($popup['settings']
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['peanut_popup_nonce'])) {
-    if (wp_verify_nonce($_POST['peanut_popup_nonce'], 'peanut_save_popup')) {
-        global $wpdb;
-        $table = Popups_Database::popups_table();
-
-        $data = [
-            'user_id' => get_current_user_id(),
-            'name' => sanitize_text_field($_POST['name'] ?? ''),
-            'type' => sanitize_text_field($_POST['type'] ?? 'modal'),
-            'position' => sanitize_text_field($_POST['position'] ?? 'center'),
-            'status' => sanitize_text_field($_POST['status'] ?? 'draft'),
-            'title' => sanitize_text_field($_POST['title'] ?? ''),
-            'content' => wp_kses_post($_POST['content'] ?? ''),
-            'image_url' => esc_url_raw($_POST['image_url'] ?? ''),
-            'button_text' => sanitize_text_field($_POST['button_text'] ?? 'Subscribe'),
-            'success_message' => sanitize_text_field($_POST['success_message'] ?? ''),
-            'form_fields' => wp_json_encode($_POST['form_fields'] ?? []),
-            'triggers' => wp_json_encode($_POST['triggers'] ?? []),
-            'display_rules' => wp_json_encode($_POST['display_rules'] ?? []),
-            'styles' => wp_json_encode($_POST['styles'] ?? []),
-            'settings' => wp_json_encode($_POST['settings'] ?? []),
-        ];
-
-        if ($popup_id) {
-            $wpdb->update($table, $data, ['id' => $popup_id]);
-            echo '<div class="notice notice-success"><p>' . esc_html__('Popup updated successfully.', 'peanut-suite') . '</p></div>';
-        } else {
-            $wpdb->insert($table, $data);
-            $popup_id = $wpdb->insert_id;
-            echo '<div class="notice notice-success"><p>' . esc_html__('Popup created successfully.', 'peanut-suite') . '</p></div>';
-            // Redirect to edit URL
-            echo '<script>window.history.replaceState({}, "", "' . admin_url('admin.php?page=peanut-popup-builder&id=' . $popup_id) . '");</script>';
-        }
-
-        // Reload popup data
-        $popup = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $popup_id), ARRAY_A);
-        $form_fields = json_decode($popup['form_fields'], true) ?: [];
-        $triggers = json_decode($popup['triggers'], true) ?: [];
-        $display_rules = json_decode($popup['display_rules'], true) ?: [];
-        $styles = json_decode($popup['styles'], true) ?: [];
-        $settings = json_decode($popup['settings'], true) ?: [];
+    if ( ! wp_verify_nonce( sanitize_key( $_POST['peanut_popup_nonce'] ), 'peanut_save_popup' ) ) {
+        wp_die( __( 'Security check failed.', 'peanut-suite' ), 403 );
     }
+    global $wpdb;
+    $table = Popups_Database::popups_table();
+
+    $data = [
+        'user_id' => get_current_user_id(),
+        'name' => sanitize_text_field($_POST['name'] ?? ''),
+        'type' => sanitize_text_field($_POST['type'] ?? 'modal'),
+        'position' => sanitize_text_field($_POST['position'] ?? 'center'),
+        'status' => sanitize_text_field($_POST['status'] ?? 'draft'),
+        'title' => sanitize_text_field($_POST['title'] ?? ''),
+        'content' => wp_kses_post($_POST['content'] ?? ''),
+        'image_url' => esc_url_raw($_POST['image_url'] ?? ''),
+        'button_text' => sanitize_text_field($_POST['button_text'] ?? 'Subscribe'),
+        'success_message' => sanitize_text_field($_POST['success_message'] ?? ''),
+        'form_fields' => wp_json_encode($_POST['form_fields'] ?? []),
+        'triggers' => wp_json_encode($_POST['triggers'] ?? []),
+        'display_rules' => wp_json_encode($_POST['display_rules'] ?? []),
+        'styles' => wp_json_encode($_POST['styles'] ?? []),
+        'settings' => wp_json_encode($_POST['settings'] ?? []),
+    ];
+
+    if ($popup_id) {
+        $wpdb->update($table, $data, ['id' => $popup_id]);
+        echo '<div class="notice notice-success"><p>' . esc_html__('Popup updated successfully.', 'peanut-suite') . '</p></div>';
+    } else {
+        $wpdb->insert($table, $data);
+        $popup_id = $wpdb->insert_id;
+        echo '<div class="notice notice-success"><p>' . esc_html__('Popup created successfully.', 'peanut-suite') . '</p></div>';
+        // Redirect to edit URL
+        echo '<script>window.history.replaceState({}, "", "' . admin_url('admin.php?page=peanut-popup-builder&id=' . $popup_id) . '");</script>';
+    }
+
+    // Reload popup data
+    $popup = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $popup_id), ARRAY_A);
+    $form_fields = json_decode($popup['form_fields'], true) ?: [];
+    $triggers = json_decode($popup['triggers'], true) ?: [];
+    $display_rules = json_decode($popup['display_rules'], true) ?: [];
+    $styles = json_decode($popup['styles'], true) ?: [];
+    $settings = json_decode($popup['settings'], true) ?: [];
 }
 
 $current_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'content';
