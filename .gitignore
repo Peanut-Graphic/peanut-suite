@@ -54,3 +54,4 @@ coverage/
 *.pem
 *.key
 service-account*.json
+.playwright-mcp
