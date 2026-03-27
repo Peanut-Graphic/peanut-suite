@@ -237,6 +237,7 @@ class SEO_Module {
         global $wpdb;
         $table = $wpdb->prefix . 'peanut_seo_keywords';
 
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $table uses $wpdb->prefix which is not user-controlled
         $keywords = $wpdb->get_results("SELECT * FROM $table", ARRAY_A);
         $checked = 0;
 

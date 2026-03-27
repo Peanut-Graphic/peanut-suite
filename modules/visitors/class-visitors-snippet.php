@@ -104,9 +104,11 @@ class Visitors_Snippet {
         header('Cache-Control: public, max-age=86400'); // 24 hour cache
         header('X-Content-Type-Options: nosniff');
 
-        // Allow CORS for external embedding
-        $origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '*';
-        header("Access-Control-Allow-Origin: {$origin}");
+        // Allow CORS for external embedding — validate origin against site URL
+        $allowed_origin = get_site_url();
+        if (isset($_SERVER['HTTP_ORIGIN']) && $_SERVER['HTTP_ORIGIN'] === $allowed_origin) {
+            header("Access-Control-Allow-Origin: {$allowed_origin}");
+        }
         header('Access-Control-Allow-Methods: GET');
 
         echo $script;

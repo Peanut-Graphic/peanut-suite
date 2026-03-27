@@ -15,6 +15,7 @@ $subscribers_table = $wpdb->prefix . 'peanut_sequence_subscribers';
 // Get sequences
 $sequences = [];
 if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $sequences_table)) === $sequences_table) {
+    // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name uses $wpdb->prefix which is not user-controlled
     $sequences = $wpdb->get_results("SELECT * FROM $sequences_table ORDER BY created_at DESC", ARRAY_A) ?: [];
 
     // Get stats for each sequence

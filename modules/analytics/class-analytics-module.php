@@ -60,8 +60,10 @@ class Analytics_Module {
         require_once $base_path . 'class-analytics-database.php';
         require_once $base_path . 'class-analytics-aggregator.php';
         require_once $base_path . 'class-ml-visitor-segmentation.php';
+        require_once $base_path . 'class-ml-conversion-clustering.php';
         require_once $base_path . 'api/class-analytics-controller.php';
         require_once $base_path . 'api/class-ml-segmentation-controller.php';
+        require_once $base_path . 'api/class-ml-clustering-controller.php';
     }
 
     /**
@@ -75,6 +77,7 @@ class Analytics_Module {
         add_action('peanut_aggregate_stats', [$this, 'run_aggregation']);
         add_action('peanut_analytics_cleanup', [$this, 'run_cleanup']);
         add_action('peanut_ml_segmentation_train', [$this, 'train_segmentation_model']);
+        add_action('peanut_ml_conversion_clustering_train', [$this, 'train_clustering_model']);
 
         // Schedule cron jobs
         if (!wp_next_scheduled('peanut_aggregate_stats')) {
@@ -88,6 +91,10 @@ class Analytics_Module {
         // Schedule ML model training if not already scheduled
         if (!wp_next_scheduled('peanut_ml_segmentation_train')) {
             wp_schedule_event(time(), 'weekly', 'peanut_ml_segmentation_train');
+        }
+
+        if (!wp_next_scheduled('peanut_ml_conversion_clustering_train')) {
+            wp_schedule_event(time(), 'weekly', 'peanut_ml_conversion_clustering_train');
         }
 
         // Hook into events for real-time stat updates
@@ -106,6 +113,10 @@ class Analytics_Module {
         // Register ML visitor segmentation API routes
         $segmentation_controller = new ML_Segmentation_Controller();
         $segmentation_controller->register_routes();
+
+        // Register ML conversion path clustering API routes
+        $clustering_controller = new ML_Clustering_Controller();
+        $clustering_controller->register_routes();
     }
 
     /**
@@ -148,6 +159,20 @@ class Analytics_Module {
             error_log('Peanut Suite ML: Visitor segmentation model training completed');
         } else {
             error_log('Peanut Suite ML: Visitor segmentation model training failed');
+        }
+    }
+
+    /**
+     * Train the conversion path clustering model.
+     */
+    public function train_clustering_model(): void {
+        $clustering = new \Peanut_ML_Conversion_Clustering();
+        $result = $clustering->train_model();
+
+        if ($result) {
+            error_log('Peanut Suite ML: Conversion path clustering model training completed');
+        } else {
+            error_log('Peanut Suite ML: Conversion path clustering model training failed');
         }
     }
 
@@ -238,10 +263,16 @@ class Analytics_Module {
         wp_clear_scheduled_hook('peanut_aggregate_stats');
         wp_clear_scheduled_hook('peanut_analytics_cleanup');
         wp_clear_scheduled_hook('peanut_ml_segmentation_train');
+        wp_clear_scheduled_hook('peanut_ml_conversion_clustering_train');
 
         // Unschedule ML segmentation training if class is available
         if (class_exists('Peanut_ML_Visitor_Segmentation')) {
             \Peanut_ML_Visitor_Segmentation::unschedule_training();
+        }
+
+        // Unschedule ML clustering training if class is available
+        if (class_exists('Peanut_ML_Conversion_Clustering')) {
+            \Peanut_ML_Conversion_Clustering::unschedule_training();
         }
     }
 }

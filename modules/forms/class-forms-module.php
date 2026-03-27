@@ -118,6 +118,7 @@ class Forms_Module {
         global $wpdb;
         $table = $wpdb->prefix . 'peanut_form_stats';
 
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $table uses $wpdb->prefix which is not user-controlled
         $forms = $wpdb->get_results("
             SELECT
                 form_id,
