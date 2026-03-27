@@ -341,7 +341,8 @@ class Peanut_Database {
         ];
 
         foreach ($tables as $table) {
-            $wpdb->query("DROP TABLE IF EXISTS $table");
+            // Table names are safe (from static methods), use query directly
+            $wpdb->query($wpdb->prepare("DROP TABLE IF EXISTS %i", $table));
         }
 
         delete_option('peanut_db_version');
@@ -435,6 +436,7 @@ class Peanut_Database {
         }
 
         // Set account_id on existing UTMs based on user's account
+        // Table names are safely generated, values are not interpolated in WHERE clause
         $wpdb->query(
             "UPDATE {$utms_table} u
              INNER JOIN {$accounts_table} a ON u.user_id = a.owner_user_id
@@ -443,6 +445,7 @@ class Peanut_Database {
         );
 
         // Grant full access to existing UTMs for account owners
+        // Table names are safely generated, literal 'full' is hardcoded for access_level
         $wpdb->query(
             "INSERT IGNORE INTO {$utm_access_table} (utm_id, user_id, account_id, access_level, assigned_by)
              SELECT u.id, u.user_id, u.account_id, 'full', u.user_id
