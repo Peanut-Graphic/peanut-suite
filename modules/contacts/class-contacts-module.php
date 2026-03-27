@@ -26,8 +26,19 @@ class Contacts_Module {
      * Initialize module
      */
     public function init(): void {
+        // Load dependencies
+        $this->load_dependencies();
+
         // Register API routes
         add_action('peanut_register_routes', [$this, 'register_routes']);
+
+        // Register cron jobs
+        add_action('peanut_ml_lead_scoring_train', [$this, 'train_lead_scoring_model']);
+
+        // Schedule ML model training if not already scheduled
+        if (!wp_next_scheduled('peanut_ml_lead_scoring_train')) {
+            wp_schedule_event(time(), 'weekly', 'peanut_ml_lead_scoring_train');
+        }
 
         // Dashboard stats
         add_filter('peanut_dashboard_stats', [$this, 'add_dashboard_stats'], 10, 2);
@@ -37,12 +48,39 @@ class Contacts_Module {
     }
 
     /**
+     * Load module dependencies.
+     */
+    private function load_dependencies(): void {
+        require_once __DIR__ . '/class-ml-lead-scoring.php';
+    }
+
+    /**
      * Register REST routes
      */
     public function register_routes(): void {
         require_once __DIR__ . '/api/class-contacts-controller.php';
+        require_once __DIR__ . '/api/class-ml-lead-scoring-controller.php';
+
         $controller = new Contacts_Controller();
         $controller->register_routes();
+
+        // Register ML lead scoring API routes
+        $scoring_controller = new ML_Lead_Scoring_Controller();
+        $scoring_controller->register_routes();
+    }
+
+    /**
+     * Train the lead scoring model.
+     */
+    public function train_lead_scoring_model(): void {
+        $scorer = new \Peanut_ML_Lead_Scoring();
+        $result = $scorer->train_model();
+
+        if ($result) {
+            error_log('Peanut Suite ML: Lead scoring model training completed');
+        } else {
+            error_log('Peanut Suite ML: Lead scoring model training failed');
+        }
     }
 
     /**
@@ -200,5 +238,18 @@ class Contacts_Module {
             '90d' => "AND created_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)",
             default => '',
         };
+    }
+
+    /**
+     * Deactivation hook.
+     */
+    public static function deactivate(): void {
+        // Clear scheduled events
+        wp_clear_scheduled_hook('peanut_ml_lead_scoring_train');
+
+        // Unschedule ML lead scoring training if class is available
+        if (class_exists('Peanut_ML_Lead_Scoring')) {
+            \Peanut_ML_Lead_Scoring::unschedule_training();
+        }
     }
 }

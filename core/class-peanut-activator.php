@@ -84,6 +84,14 @@ class Peanut_Activator {
                 'anonymize_ip' => false,
             ]);
         }
+
+        // ML service settings
+        if (get_option('peanut_ml_settings') === false) {
+            update_option('peanut_ml_settings', [
+                'service_url' => 'http://127.0.0.1:8100',
+                'api_key' => '',
+            ]);
+        }
     }
 
     /**

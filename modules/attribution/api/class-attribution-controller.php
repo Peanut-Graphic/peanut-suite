@@ -148,6 +148,23 @@ class Attribution_Controller {
             'callback' => [$this, 'get_models'],
             'permission_callback' => [$this, 'check_permission'],
         ]);
+
+        // Markov attribution
+        register_rest_route($this->namespace, '/attribution/markov', [
+            'methods' => 'GET',
+            'callback' => [$this, 'get_markov_report'],
+            'permission_callback' => [$this, 'check_permission'],
+            'args' => [
+                'date_from' => [
+                    'type' => 'string',
+                    'required' => false,
+                ],
+                'date_to' => [
+                    'type' => 'string',
+                    'required' => false,
+                ],
+            ],
+        ]);
     }
 
     /**
@@ -338,5 +355,33 @@ class Attribution_Controller {
         }
 
         return new \WP_REST_Response($models);
+    }
+
+    /**
+     * Get Markov chain attribution report.
+     *
+     * @param \WP_REST_Request $request Request object.
+     * @return \WP_REST_Response
+     */
+    public function get_markov_report(\WP_REST_Request $request): \WP_REST_Response {
+        $date_from = $request->get_param('date_from') ?? gmdate('Y-m-d', strtotime('-30 days'));
+        $date_to = $request->get_param('date_to') ?? gmdate('Y-m-d');
+
+        if (!class_exists('Peanut_Markov_Attribution')) {
+            return new \WP_REST_Response(
+                ['error' => 'Markov attribution service unavailable'],
+                503
+            );
+        }
+
+        $report = Peanut_Markov_Attribution::get_report($date_from, $date_to);
+        if (!$report) {
+            return new \WP_REST_Response(
+                ['error' => 'Markov attribution service is unavailable'],
+                503
+            );
+        }
+
+        return new \WP_REST_Response($report);
     }
 }

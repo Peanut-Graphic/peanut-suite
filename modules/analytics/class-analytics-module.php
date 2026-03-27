@@ -59,7 +59,9 @@ class Analytics_Module {
 
         require_once $base_path . 'class-analytics-database.php';
         require_once $base_path . 'class-analytics-aggregator.php';
+        require_once $base_path . 'class-ml-visitor-segmentation.php';
         require_once $base_path . 'api/class-analytics-controller.php';
+        require_once $base_path . 'api/class-ml-segmentation-controller.php';
     }
 
     /**
@@ -72,6 +74,7 @@ class Analytics_Module {
         // Register cron jobs
         add_action('peanut_aggregate_stats', [$this, 'run_aggregation']);
         add_action('peanut_analytics_cleanup', [$this, 'run_cleanup']);
+        add_action('peanut_ml_segmentation_train', [$this, 'train_segmentation_model']);
 
         // Schedule cron jobs
         if (!wp_next_scheduled('peanut_aggregate_stats')) {
@@ -80,6 +83,11 @@ class Analytics_Module {
 
         if (!wp_next_scheduled('peanut_analytics_cleanup')) {
             wp_schedule_event(time(), 'daily', 'peanut_analytics_cleanup');
+        }
+
+        // Schedule ML model training if not already scheduled
+        if (!wp_next_scheduled('peanut_ml_segmentation_train')) {
+            wp_schedule_event(time(), 'weekly', 'peanut_ml_segmentation_train');
         }
 
         // Hook into events for real-time stat updates
@@ -94,6 +102,10 @@ class Analytics_Module {
     public function register_api_routes(): void {
         $this->controller = new Analytics_Controller();
         $this->controller->register_routes();
+
+        // Register ML visitor segmentation API routes
+        $segmentation_controller = new ML_Segmentation_Controller();
+        $segmentation_controller->register_routes();
     }
 
     /**
@@ -122,6 +134,20 @@ class Analytics_Module {
 
         if ($deleted > 0) {
             error_log("Peanut Suite: Cleaned up {$deleted} old analytics records");
+        }
+    }
+
+    /**
+     * Train the visitor segmentation model.
+     */
+    public function train_segmentation_model(): void {
+        $segmentation = new \Peanut_ML_Visitor_Segmentation();
+        $result = $segmentation->train_model();
+
+        if ($result) {
+            error_log('Peanut Suite ML: Visitor segmentation model training completed');
+        } else {
+            error_log('Peanut Suite ML: Visitor segmentation model training failed');
         }
     }
 
@@ -211,5 +237,11 @@ class Analytics_Module {
         // Clear scheduled events
         wp_clear_scheduled_hook('peanut_aggregate_stats');
         wp_clear_scheduled_hook('peanut_analytics_cleanup');
+        wp_clear_scheduled_hook('peanut_ml_segmentation_train');
+
+        // Unschedule ML segmentation training if class is available
+        if (class_exists('Peanut_ML_Visitor_Segmentation')) {
+            \Peanut_ML_Visitor_Segmentation::unschedule_training();
+        }
     }
 }

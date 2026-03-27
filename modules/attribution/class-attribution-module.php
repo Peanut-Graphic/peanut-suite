@@ -60,6 +60,7 @@ class Attribution_Module {
         require_once $base_path . 'class-attribution-database.php';
         require_once $base_path . 'class-attribution-models.php';
         require_once $base_path . 'class-attribution-calculator.php';
+        require_once $base_path . 'class-markov-attribution.php';
         require_once $base_path . 'api/class-attribution-controller.php';
     }
 
@@ -70,9 +71,13 @@ class Attribution_Module {
         // Register REST API routes
         add_action('rest_api_init', [$this, 'register_api_routes']);
 
+        // Register Markov attribution model
+        add_filter('peanut_attribution_models', ['Peanut_Markov_Attribution', 'register_model']);
+
         // Register cron jobs
         add_action('peanut_attribution_calculate', [$this, 'run_attribution_calculation']);
         add_action('peanut_attribution_cleanup', [$this, 'run_cleanup']);
+        add_action('peanut_markov_train', ['Peanut_Markov_Attribution', 'train']);
 
         // Schedule cron jobs
         if (!wp_next_scheduled('peanut_attribution_calculate')) {
@@ -81,6 +86,11 @@ class Attribution_Module {
 
         if (!wp_next_scheduled('peanut_attribution_cleanup')) {
             wp_schedule_event(time(), 'daily', 'peanut_attribution_cleanup');
+        }
+
+        // Schedule Markov training if not already scheduled
+        if (!wp_next_scheduled('peanut_markov_train')) {
+            wp_schedule_event(time(), 'daily', 'peanut_markov_train');
         }
 
         // Hook into visitor events to record touches
@@ -241,6 +251,11 @@ class Attribution_Module {
             $settings['default_attribution_model'] = 'last_touch';
             update_option('peanut_settings', $settings);
         }
+
+        // Schedule Markov training if class is available
+        if (class_exists('Peanut_Markov_Attribution')) {
+            Peanut_Markov_Attribution::schedule_training();
+        }
     }
 
     /**
@@ -250,5 +265,11 @@ class Attribution_Module {
         // Clear scheduled events
         wp_clear_scheduled_hook('peanut_attribution_calculate');
         wp_clear_scheduled_hook('peanut_attribution_cleanup');
+        wp_clear_scheduled_hook('peanut_markov_train');
+
+        // Unschedule Markov training if class is available
+        if (class_exists('Peanut_Markov_Attribution')) {
+            Peanut_Markov_Attribution::unschedule_training();
+        }
     }
 }

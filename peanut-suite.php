@@ -79,6 +79,26 @@ spl_autoload_register(function ($class) {
         }
     }
 
+    // Check for Peanut_ML_ prefix (ML module classes)
+    if (strpos($class, 'Peanut_ML_') === 0) {
+        $class_name = str_replace('Peanut_ML_', '', $class);
+        $class_name = strtolower(str_replace('_', '-', $class_name));
+
+        $directories = [
+            PEANUT_PLUGIN_DIR . 'modules/analytics/',
+            PEANUT_PLUGIN_DIR . 'modules/contacts/',
+            PEANUT_PLUGIN_DIR . 'modules/attribution/',
+        ];
+
+        foreach ($directories as $directory) {
+            $file = $directory . 'class-ml-' . $class_name . '.php';
+            if (file_exists($file)) {
+                require_once $file;
+                return;
+            }
+        }
+    }
+
     // Check for module classes (Module_Name_Class format)
     if (preg_match('/^(UTM|Links|Contacts|Popups|Dashboard|Invoicing|Security|Reports|Backlinks|Geopets)_(.+)$/', $class, $matches)) {
         $module = strtolower($matches[1]);
