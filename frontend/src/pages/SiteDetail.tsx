@@ -422,13 +422,13 @@ export default function SiteDetail() {
               <label className="block text-sm font-medium text-slate-700 mb-1">Display Name</label>
               <input
                 type="text"
-                className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
                 defaultValue={site.name}
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Check Interval</label>
-              <select className="w-full border border-slate-200 rounded-lg px-3 py-2">
+              <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-slate-900">
                 <option value="5">Every 5 minutes</option>
                 <option value="15">Every 15 minutes</option>
                 <option value="30">Every 30 minutes</option>

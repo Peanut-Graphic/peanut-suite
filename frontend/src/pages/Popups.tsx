@@ -192,7 +192,7 @@ export default function Popups() {
             <input
               type="text"
               placeholder="Search popups..."
-              className="pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               value={popupFilters.search}
               onChange={(e) => setPopupFilter('search', e.target.value)}
             />
@@ -258,7 +258,7 @@ export default function Popups() {
           <div className="flex-1 min-w-[150px]">
             <label className="block text-xs font-medium text-slate-500 mb-1">Status</label>
             <select
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900"
               value={popupFilters.status}
               onChange={(e) => setPopupFilter('status', e.target.value)}
             >
@@ -272,7 +272,7 @@ export default function Popups() {
           <div className="flex-1 min-w-[150px]">
             <label className="block text-xs font-medium text-slate-500 mb-1">Type</label>
             <select
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900"
               value={popupFilters.type}
               onChange={(e) => setPopupFilter('type', e.target.value)}
             >

@@ -205,7 +205,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold text-slate-900">Performance Overview</h3>
             <select
-              className="text-sm border border-slate-200 rounded-lg px-3 py-1.5"
+              className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 text-slate-900"
               value={period}
               onChange={(e) => setPeriod(e.target.value as '7d' | '30d' | '90d')}
             >

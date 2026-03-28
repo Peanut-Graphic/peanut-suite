@@ -166,7 +166,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           ref={ref}
           id={inputId}
           className={clsx(
-            'block rounded-lg border bg-white text-slate-900 placeholder-slate-400',
+            'block rounded-lg border bg-white text-slate-900 dark:text-slate-100 placeholder-slate-400',
             'focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500',
             'disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed',
             'px-3 py-2 text-sm min-h-[80px]',

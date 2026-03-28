@@ -214,7 +214,7 @@ export default function Contacts() {
             <input
               type="text"
               placeholder="Search contacts..."
-              className="pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               value={contactFilters.search}
               onChange={(e) => setContactFilter('search', e.target.value)}
             />
@@ -262,7 +262,7 @@ export default function Contacts() {
           <div className="flex-1 min-w-[150px]">
             <label className="block text-xs font-medium text-slate-500 mb-1">Status</label>
             <select
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900"
               value={contactFilters.status}
               onChange={(e) => setContactFilter('status', e.target.value)}
             >
@@ -277,7 +277,7 @@ export default function Contacts() {
           <div className="flex-1 min-w-[150px]">
             <label className="block text-xs font-medium text-slate-500 mb-1">Source</label>
             <select
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900"
               value={contactFilters.source}
               onChange={(e) => setContactFilter('source', e.target.value)}
             >
@@ -291,7 +291,7 @@ export default function Contacts() {
           <div className="flex-1 min-w-[150px]">
             <label className="block text-xs font-medium text-slate-500 mb-1">Tag</label>
             <select
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900"
               value={contactFilters.tag}
               onChange={(e) => setContactFilter('tag', e.target.value)}
             >
