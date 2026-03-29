@@ -46,14 +46,14 @@ export default function Analytics() {
   const { data: overview, isLoading: overviewLoading, refetch: refetchOverview } = useQuery({
     queryKey: ['analytics-overview', period],
     queryFn: () => analyticsApi.getOverview(period),
-    refetchInterval: 60000, // Refresh every minute
+    refetchInterval: 5 * 60 * 1000,
   });
 
   // Fetch realtime
   const { data: realtime } = useQuery({
     queryKey: ['analytics-realtime'],
     queryFn: analyticsApi.getRealtime,
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 5 * 60 * 1000,
   });
 
   // Fetch timeline

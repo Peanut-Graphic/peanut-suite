@@ -10,9 +10,14 @@ import './store/useThemeStore'; // Initialize theme store
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      retry: 1,
+      retry: 2,
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+      staleTime: 5 * 60 * 1000,
+      refetchInterval: false,
       refetchOnWindowFocus: false,
+    },
+    mutations: {
+      retry: 1,
     },
   },
 });
