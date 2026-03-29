@@ -279,12 +279,8 @@ class Peanut_Updater {
 
         // Clear version-specific caches
         global $wpdb;
-        $wpdb->query(
-            "DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_peanut_update_check_%'"
-        );
-        $wpdb->query(
-            "DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_timeout_peanut_update_check_%'"
-        );
+        $wpdb->query($wpdb->prepare("DELETE FROM %i WHERE option_name LIKE %s", $wpdb->options, '_transient_peanut_update_check_%'));
+        $wpdb->query($wpdb->prepare("DELETE FROM %i WHERE option_name LIKE %s", $wpdb->options, '_transient_timeout_peanut_update_check_%'));
     }
 
     /**

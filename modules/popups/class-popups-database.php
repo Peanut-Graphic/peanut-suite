@@ -112,7 +112,7 @@ class Popups_Database {
         ];
 
         foreach ($tables as $table) {
-            $wpdb->query("DROP TABLE IF EXISTS $table");
+            $wpdb->query($wpdb->prepare("DROP TABLE IF EXISTS %i", $table));
         }
     }
 
@@ -124,7 +124,7 @@ class Popups_Database {
 
         // Keep 90 days of interactions
         $interactions_table = self::interactions_table();
-        $wpdb->query("DELETE FROM $interactions_table WHERE created_at < DATE_SUB(NOW(), INTERVAL 90 DAY)");
+        $wpdb->query($wpdb->prepare("DELETE FROM %i WHERE created_at < DATE_SUB(NOW(), INTERVAL 90 DAY)", $interactions_table));
     }
 
     /**

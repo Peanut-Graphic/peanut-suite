@@ -799,16 +799,10 @@ class Security_Module {
         global $wpdb;
 
         // Delete attempts older than 30 days
-        $wpdb->query(
-            "DELETE FROM {$wpdb->prefix}peanut_login_attempts
-            WHERE attempt_time < DATE_SUB(NOW(), INTERVAL 30 DAY)"
-        );
+        $wpdb->query($wpdb->prepare("DELETE FROM %i WHERE attempt_time < DATE_SUB(NOW(), INTERVAL 30 DAY)", $wpdb->prefix . 'peanut_login_attempts'));
 
         // Delete expired lockouts
-        $wpdb->query(
-            "DELETE FROM {$wpdb->prefix}peanut_lockouts
-            WHERE lockout_until < NOW()"
-        );
+        $wpdb->query($wpdb->prepare("DELETE FROM %i WHERE lockout_until < NOW()", $wpdb->prefix . 'peanut_lockouts'));
     }
 
     /**

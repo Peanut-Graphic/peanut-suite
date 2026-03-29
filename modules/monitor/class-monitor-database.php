@@ -182,7 +182,7 @@ class Monitor_Database {
         ];
 
         foreach ($tables as $table) {
-            $wpdb->query("DROP TABLE IF EXISTS $table");
+            $wpdb->query($wpdb->prepare("DROP TABLE IF EXISTS %i", $table));
         }
     }
 
@@ -194,18 +194,18 @@ class Monitor_Database {
 
         // Keep 30 days of health logs
         $health_log_table = self::health_log_table();
-        $wpdb->query("DELETE FROM $health_log_table WHERE checked_at < DATE_SUB(NOW(), INTERVAL 30 DAY)");
+        $wpdb->query($wpdb->prepare("DELETE FROM %i WHERE checked_at < DATE_SUB(NOW(), INTERVAL 30 DAY)", $health_log_table));
 
         // Keep 90 days of uptime records
         $uptime_table = self::uptime_table();
-        $wpdb->query("DELETE FROM $uptime_table WHERE checked_at < DATE_SUB(NOW(), INTERVAL 90 DAY)");
+        $wpdb->query($wpdb->prepare("DELETE FROM %i WHERE checked_at < DATE_SUB(NOW(), INTERVAL 90 DAY)", $uptime_table));
 
         // Keep 12 months of analytics
         $analytics_table = self::analytics_table();
-        $wpdb->query("DELETE FROM $analytics_table WHERE period_start < DATE_SUB(NOW(), INTERVAL 12 MONTH)");
+        $wpdb->query($wpdb->prepare("DELETE FROM %i WHERE period_start < DATE_SUB(NOW(), INTERVAL 12 MONTH)", $analytics_table));
 
         // Keep 90 days of web vitals data
         $webvitals_table = self::webvitals_table();
-        $wpdb->query("DELETE FROM $webvitals_table WHERE checked_at < DATE_SUB(NOW(), INTERVAL 90 DAY)");
+        $wpdb->query($wpdb->prepare("DELETE FROM %i WHERE checked_at < DATE_SUB(NOW(), INTERVAL 90 DAY)", $webvitals_table));
     }
 }

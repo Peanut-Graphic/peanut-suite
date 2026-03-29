@@ -62,7 +62,7 @@ class Webhooks_Database {
      */
     public static function drop_tables(): void {
         global $wpdb;
-        $wpdb->query("DROP TABLE IF EXISTS " . self::webhooks_table());
+        $wpdb->query($wpdb->prepare("DROP TABLE IF EXISTS %i", self::webhooks_table()));
     }
 
     /**
