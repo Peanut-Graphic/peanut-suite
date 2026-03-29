@@ -246,8 +246,14 @@ class Visitors_Database {
         global $wpdb;
         $table = self::get_events_table();
 
-        if (!empty($data['custom_data']) && is_array($data['custom_data'])) {
-            $data['custom_data'] = wp_json_encode($data['custom_data']);
+        if (!empty($data['custom_data'])) {
+            if (is_array($data['custom_data'])) {
+                $data['custom_data'] = wp_json_encode($data['custom_data']);
+            } elseif (is_string($data['custom_data'])) {
+                if (json_decode($data['custom_data'], true) === null && json_last_error() !== JSON_ERROR_NONE) {
+                    $data['custom_data'] = null;
+                }
+            }
         }
 
         $result = $wpdb->insert($table, $data);

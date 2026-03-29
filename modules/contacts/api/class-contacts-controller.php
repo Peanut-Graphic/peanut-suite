@@ -210,8 +210,16 @@ class Contacts_Controller extends Peanut_REST_Controller {
 
         // Custom fields
         $custom = $request->get_param('custom_fields');
-        if (is_array($custom)) {
-            $data['custom_fields'] = wp_json_encode(Peanut_Security::sanitize_fields($custom));
+        if (isset($custom)) {
+            if (is_string($custom)) {
+                $decoded = json_decode($custom, true);
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    return $this->error('Invalid JSON in custom_fields', 400);
+                }
+                $data['custom_fields'] = wp_json_encode($decoded);
+            } elseif (is_array($custom)) {
+                $data['custom_fields'] = wp_json_encode(Peanut_Security::sanitize_fields($custom));
+            }
         }
 
         // Calculate score
@@ -261,6 +269,20 @@ class Contacts_Controller extends Peanut_REST_Controller {
                 $data[$field] = $field === 'notes'
                     ? sanitize_textarea_field($value)
                     : sanitize_text_field($value);
+            }
+        }
+
+        // Custom fields
+        $custom = $request->get_param('custom_fields');
+        if (isset($custom)) {
+            if (is_string($custom)) {
+                $decoded = json_decode($custom, true);
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    return $this->error('Invalid JSON in custom_fields', 400);
+                }
+                $data['custom_fields'] = wp_json_encode($decoded);
+            } elseif (is_array($custom)) {
+                $data['custom_fields'] = wp_json_encode(Peanut_Security::sanitize_fields($custom));
             }
         }
 
