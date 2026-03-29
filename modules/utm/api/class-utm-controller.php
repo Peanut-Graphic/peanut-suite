@@ -238,6 +238,10 @@ class UTM_Controller extends Peanut_REST_Controller {
             'utm_content' => $request->get_param('utm_content'),
         ]);
 
+        if (strlen($full_url) > 2048) {
+            return $this->error('URL exceeds maximum length of 2048 characters', 400);
+        }
+
         $data = [
             'user_id' => $user_id,
             'account_id' => $account_id,

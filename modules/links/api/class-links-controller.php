@@ -143,6 +143,10 @@ class Links_Controller extends Peanut_REST_Controller {
             return $this->error(__('Destination URL is required', 'peanut-suite'));
         }
 
+        if (strlen($destination) > 2048) {
+            return $this->error('URL exceeds maximum length of 2048 characters', 400);
+        }
+
         // Custom slug or generate
         $slug = $request->get_param('slug');
         if ($slug) {
