@@ -249,6 +249,9 @@ class Popups_Controller extends Peanut_REST_Controller {
         $popup_id = $wpdb->insert_id;
         $popup = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $popup_id));
 
+        $account = Peanut_Account_Service::get_or_create_for_user($user_id);
+        Peanut_Audit_Log_Service::log($account ? $account['id'] : 0, Peanut_Audit_Log_Service::ACTION_CREATE, 'popup', $popup_id);
+
         return $this->success([
             'id' => $popup_id,
             'popup' => $this->prepare_popup_for_response($popup),
@@ -320,6 +323,9 @@ class Popups_Controller extends Peanut_REST_Controller {
 
         $popup = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $id));
 
+        $account = Peanut_Account_Service::get_or_create_for_user($user_id);
+        Peanut_Audit_Log_Service::log($account ? $account['id'] : 0, Peanut_Audit_Log_Service::ACTION_UPDATE, 'popup', $id);
+
         return $this->success([
             'popup' => $this->prepare_popup_for_response($popup),
             'message' => __('Popup updated.', 'peanut-suite'),
@@ -352,6 +358,9 @@ class Popups_Controller extends Peanut_REST_Controller {
 
         // Delete popup
         $wpdb->delete($table, ['id' => $id]);
+
+        $account = Peanut_Account_Service::get_or_create_for_user($user_id);
+        Peanut_Audit_Log_Service::log($account ? $account['id'] : 0, Peanut_Audit_Log_Service::ACTION_DELETE, 'popup', $id);
 
         return $this->success(['message' => __('Popup deleted.', 'peanut-suite')]);
     }

@@ -192,6 +192,9 @@ class Links_Controller extends Peanut_REST_Controller {
 
         $item = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $id), ARRAY_A);
 
+        $account = Peanut_Account_Service::get_or_create_for_user($user_id);
+        Peanut_Audit_Log_Service::log($account ? $account['id'] : 0, Peanut_Audit_Log_Service::ACTION_CREATE, Peanut_Audit_Log_Service::RESOURCE_LINK, $id);
+
         return $this->success($this->prepare_item($item));
     }
 
@@ -239,6 +242,9 @@ class Links_Controller extends Peanut_REST_Controller {
 
         $item = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $id), ARRAY_A);
 
+        $account = Peanut_Account_Service::get_or_create_for_user($user_id);
+        Peanut_Audit_Log_Service::log($account ? $account['id'] : 0, Peanut_Audit_Log_Service::ACTION_UPDATE, Peanut_Audit_Log_Service::RESOURCE_LINK, (int) $id);
+
         return $this->success($this->prepare_item($item));
     }
 
@@ -267,6 +273,9 @@ class Links_Controller extends Peanut_REST_Controller {
         if (!$deleted) {
             return $this->not_found(__('Link not found', 'peanut-suite'));
         }
+
+        $account = Peanut_Account_Service::get_or_create_for_user($user_id);
+        Peanut_Audit_Log_Service::log($account ? $account['id'] : 0, Peanut_Audit_Log_Service::ACTION_DELETE, Peanut_Audit_Log_Service::RESOURCE_LINK, (int) $id);
 
         return $this->success(['message' => __('Link deleted', 'peanut-suite')]);
     }

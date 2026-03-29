@@ -292,6 +292,8 @@ class UTM_Controller extends Peanut_REST_Controller {
 
         $item = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $id), ARRAY_A);
 
+        Peanut_Audit_Log_Service::log($account_id ?? 0, Peanut_Audit_Log_Service::ACTION_CREATE, Peanut_Audit_Log_Service::RESOURCE_UTM, $id);
+
         return $this->success($this->prepare_item($item));
     }
 
@@ -349,6 +351,9 @@ class UTM_Controller extends Peanut_REST_Controller {
 
         $item = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $id), ARRAY_A);
 
+        $account = Peanut_Account_Service::get_or_create_for_user($user_id);
+        Peanut_Audit_Log_Service::log($account ? $account['id'] : 0, Peanut_Audit_Log_Service::ACTION_UPDATE, Peanut_Audit_Log_Service::RESOURCE_UTM, (int) $id);
+
         return $this->success($this->prepare_item($item));
     }
 
@@ -367,6 +372,10 @@ class UTM_Controller extends Peanut_REST_Controller {
         if (!$deleted) {
             return $this->not_found(__('UTM not found', 'peanut-suite'));
         }
+
+        $utm_id = (int) $request->get_param('id');
+        $account = Peanut_Account_Service::get_or_create_for_user(get_current_user_id());
+        Peanut_Audit_Log_Service::log($account ? $account['id'] : 0, Peanut_Audit_Log_Service::ACTION_DELETE, Peanut_Audit_Log_Service::RESOURCE_UTM, $utm_id);
 
         return $this->success(['message' => __('UTM deleted', 'peanut-suite')]);
     }
