@@ -162,6 +162,10 @@ class Visitors_Controller {
      * @return \WP_REST_Response
      */
     public function track_event(\WP_REST_Request $request): \WP_REST_Response {
+        if (!Peanut_Security::check_rate_limit('track_event', 120, 60)) {
+            return new \WP_REST_Response(['message' => 'Rate limit exceeded'], 429);
+        }
+
         $visitor_id = $request->get_param('visitor_id');
 
         // Validate visitor ID format
@@ -182,6 +186,11 @@ class Visitors_Controller {
         $ua_data = Visitors_Tracker::parse_user_agent($user_agent);
         $settings = get_option('peanut_settings', []);
         $anonymize = !empty($settings['anonymize_ip']);
+
+        $ip = Visitors_Tracker::get_ip_address($anonymize);
+        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+            $ip = '0.0.0.0';
+        }
 
         $visitor_data = [
             'device_type' => $ua_data['device_type'],
@@ -239,6 +248,10 @@ class Visitors_Controller {
      * @return \WP_REST_Response
      */
     public function identify_visitor(\WP_REST_Request $request): \WP_REST_Response {
+        if (!Peanut_Security::check_rate_limit('identify_visitor', 30, 60)) {
+            return new \WP_REST_Response(['message' => 'Rate limit exceeded'], 429);
+        }
+
         $visitor_id = $request->get_param('visitor_id');
         $email = $request->get_param('email');
 
