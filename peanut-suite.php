@@ -230,11 +230,11 @@ function peanut_run_diagnostics(): array {
 
     // PHP Version
     $php_version = phpversion();
-    $php_ok = version_compare($php_version, '7.4', '>=');
+    $php_ok = version_compare($php_version, '8.0', '>=');
     $checks[] = [
         'name' => 'PHP Version',
         'status' => $php_ok ? 'pass' : 'fail',
-        'message' => $php_ok ? "PHP $php_version (7.4+ required)" : "PHP $php_version - Please upgrade to 7.4+",
+        'message' => $php_ok ? "PHP $php_version (8.0+ required)" : "PHP $php_version - Please upgrade to 8.0+",
     ];
 
     // WordPress Version
