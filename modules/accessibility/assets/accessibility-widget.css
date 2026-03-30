@@ -255,7 +255,7 @@ body.peanut-text-spacing li {
 /* Responsive */
 @media (max-width: 480px) {
     .peanut-a11y-panel {
-        width: calc(100vw - 40px);
+        width: calc(100% - 40px);
         left: 20px !important;
         right: 20px !important;
     }

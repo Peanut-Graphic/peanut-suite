@@ -47,6 +47,16 @@
   font-size: inherit;
 }
 
+/* Firefox scrollbar */
+#peanut-app * {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 #f1f5f9;
+}
+
+.dark #peanut-app * {
+    scrollbar-color: #475569 #1e293b;
+}
+
 /* Custom scrollbar */
 #peanut-app ::-webkit-scrollbar {
   width: 8px;

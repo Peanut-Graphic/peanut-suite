@@ -299,7 +299,7 @@
 /* Responsive */
 @media (max-width: 480px) {
     .peanut-tour-card {
-        width: calc(100vw - 32px);
+        width: calc(100% - 32px);
         max-width: 340px;
         left: 16px !important;
         right: 16px;
