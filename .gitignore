@@ -55,3 +55,10 @@ coverage/
 *.key
 service-account*.json
 .playwright-mcp
+
+# --- added by gitignore-sync on 2026-04-13 ---
+.claude/settings.local.json
+.claude/worktrees/
+vendor/
+.phpunit.result.cache
+.phpunit.cache/
