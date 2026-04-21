@@ -97,18 +97,26 @@ export function QRCodeModal({ isOpen, onClose, value, title }: QRCodeModalProps)
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center sm:p-4">
       {/* Backdrop */}
-      <div
+      <button
+        type="button"
         className="absolute inset-0 bg-black/50"
         onClick={onClose}
+        aria-label="Close QR code dialog"
       />
 
       {/* Modal */}
-      <div className="relative bg-white rounded-xl shadow-xl p-6 m-4 max-w-sm w-full">
+      <div
+        className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-sm overflow-y-auto rounded-t-2xl bg-white p-6 shadow-xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-xl"
+        role="dialog"
+        aria-modal="true"
+        aria-label="QR code"
+      >
         <button
           onClick={onClose}
           className="absolute top-4 right-4 p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
+          aria-label="Close QR code dialog"
         >
           <X className="w-5 h-5" />
         </button>

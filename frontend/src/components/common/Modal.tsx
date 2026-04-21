@@ -98,10 +98,11 @@ export default function Modal({
   return (
     <Fragment>
       {/* Backdrop */}
-      <div
+      <button
+        type="button"
         className="fixed inset-0 bg-black/50 dark:bg-black/70 z-[100] transition-opacity"
         onClick={onClose}
-        aria-hidden="true"
+        aria-label="Close modal"
       />
 
       {/* Modal */}
@@ -112,12 +113,12 @@ export default function Modal({
         aria-labelledby={title ? 'modal-title' : undefined}
         aria-describedby={description ? 'modal-description' : undefined}
       >
-        <div className="flex min-h-full items-center justify-center p-4">
+        <div className="flex min-h-[100dvh] items-end justify-center p-3 sm:items-center sm:p-4">
           <div
             ref={modalRef}
             tabIndex={-1}
             className={clsx(
-              'relative bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full transform transition-all focus:outline-none',
+              'relative w-full max-h-[calc(100dvh-1.5rem)] overflow-hidden rounded-t-2xl bg-white shadow-xl transition-all focus:outline-none dark:bg-slate-800 sm:max-h-[calc(100dvh-2rem)] sm:rounded-xl',
               sizes[size],
               className
             )}
@@ -141,7 +142,7 @@ export default function Modal({
                 {showClose && (
                   <button
                     onClick={onClose}
-                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 rounded"
+                    className="rounded-lg p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:hover:bg-slate-700 dark:hover:text-slate-300"
                     aria-label="Close modal"
                   >
                     <X className="w-5 h-5" aria-hidden="true" />
@@ -151,7 +152,7 @@ export default function Modal({
             )}
 
             {/* Content */}
-            <div className="p-5">{children}</div>
+            <div className="max-h-[calc(100dvh-9rem)] overflow-y-auto p-5 sm:max-h-[calc(100dvh-10rem)]">{children}</div>
           </div>
         </div>
       </div>
