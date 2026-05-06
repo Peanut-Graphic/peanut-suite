@@ -332,7 +332,7 @@ export const settingsApi = {
   },
 
   activateLicense: async (key: string) => {
-    const { data } = await api.post<License>('/license/activate', { key });
+    const { data } = await api.post<License>('/license/activate', { license_key: key });
     return data;
   },
 

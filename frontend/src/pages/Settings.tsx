@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Settings as SettingsIcon,
   Key,
@@ -12,6 +13,8 @@ import {
 } from 'lucide-react';
 import { Layout } from '../components/layout';
 import { Card, Button, Input, Badge, ThemeToggle } from '../components/common';
+import { settingsApi } from '../api';
+import type { License } from '../types';
 
 type Tab = 'general' | 'license' | 'integrations' | 'notifications' | 'advanced';
 
@@ -112,15 +115,63 @@ function GeneralSettings() {
 }
 
 function LicenseSettings() {
+  const queryClient = useQueryClient();
   const [licenseKey, setLicenseKey] = useState('');
-  const [status] = useState<'active' | 'expired' | 'invalid' | null>('active');
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const { data: license, isLoading } = useQuery<License>({
+    queryKey: ['license'],
+    queryFn: () => settingsApi.getLicense(),
+  });
+
+  useEffect(() => {
+    if (license?.status === 'free' || license?.status === 'invalid') {
+      setLicenseKey('');
+    }
+  }, [license?.status]);
+
+  const activate = useMutation({
+    mutationFn: (key: string) => settingsApi.activateLicense(key),
+    onSuccess: () => {
+      setError(null);
+      setSuccess('License activated.');
+      setLicenseKey('');
+      queryClient.invalidateQueries({ queryKey: ['license'] });
+    },
+    onError: (err: Error) => {
+      setSuccess(null);
+      setError(err.message || 'License activation failed.');
+    },
+  });
+
+  const deactivate = useMutation({
+    mutationFn: () => settingsApi.deactivateLicense(),
+    onSuccess: () => {
+      setError(null);
+      setSuccess('License deactivated.');
+      queryClient.invalidateQueries({ queryKey: ['license'] });
+    },
+    onError: (err: Error) => {
+      setSuccess(null);
+      setError(err.message || 'License deactivation failed.');
+    },
+  });
+
+  const status = license?.status ?? null;
+  const isActive = status === 'active';
+  const tier = license?.tier;
+  const expiresAt = license?.expires_at ?? null;
+  const expiryLabel = formatExpiry(expiresAt);
 
   return (
     <div className="space-y-6">
       <Card>
         <h3 className="text-lg font-semibold text-slate-900 mb-6">License Status</h3>
 
-        {status === 'active' ? (
+        {isLoading ? (
+          <div className="text-sm text-slate-500">Loading…</div>
+        ) : isActive ? (
           <div className="flex items-start gap-4 p-4 bg-green-50 rounded-lg border border-green-200">
             <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
               <Check className="w-5 h-5 text-green-600" />
@@ -128,12 +179,26 @@ function LicenseSettings() {
             <div>
               <p className="font-medium text-green-800">License Active</p>
               <p className="text-sm text-green-600">
-                Your Pro license is active and all features are unlocked.
+                Your {tierLabel(tier)} license is active. Auto-updates and gated features are unlocked.
               </p>
               <div className="flex items-center gap-4 mt-3">
-                <Badge variant="success">Pro Tier</Badge>
-                <span className="text-sm text-green-600">Expires: Dec 31, 2025</span>
+                <Badge variant="success">{tierLabel(tier)} Tier</Badge>
+                {expiryLabel && (
+                  <span className="text-sm text-green-600">{expiryLabel}</span>
+                )}
               </div>
+            </div>
+          </div>
+        ) : status === 'expired' ? (
+          <div className="flex items-start gap-4 p-4 bg-amber-50 rounded-lg border border-amber-200">
+            <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+              <AlertCircle className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <p className="font-medium text-amber-800">License Expired</p>
+              <p className="text-sm text-amber-600">
+                Renew your license to keep auto-updates and gated features.
+              </p>
             </div>
           </div>
         ) : (
@@ -144,7 +209,7 @@ function LicenseSettings() {
             <div>
               <p className="font-medium text-amber-800">No Active License</p>
               <p className="text-sm text-amber-600">
-                Enter your license key to unlock Pro features.
+                Enter your license key to unlock Pro/Agency features and auto-updates.
               </p>
             </div>
           </div>
@@ -153,17 +218,54 @@ function LicenseSettings() {
 
       <Card>
         <h3 className="text-lg font-semibold text-slate-900 mb-6">
-          {status === 'active' ? 'Update License' : 'Activate License'}
+          {isActive ? 'Update License' : 'Activate License'}
         </h3>
-        <div className="space-y-4">
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const trimmed = licenseKey.trim();
+            if (trimmed) {
+              activate.mutate(trimmed);
+            }
+          }}
+        >
           <Input
             label="License Key"
             value={licenseKey}
             onChange={(e) => setLicenseKey(e.target.value)}
             placeholder="XXXX-XXXX-XXXX-XXXX"
           />
-          <Button disabled={!licenseKey}>Activate License</Button>
-        </div>
+          {error && (
+            <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2">
+              {error}
+            </div>
+          )}
+          {success && (
+            <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded p-2">
+              {success}
+            </div>
+          )}
+          <div className="flex items-center gap-3">
+            <Button type="submit" disabled={!licenseKey.trim() || activate.isPending}>
+              {activate.isPending ? 'Activating…' : isActive ? 'Update Key' : 'Activate License'}
+            </Button>
+            {isActive && (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  if (confirm('Deactivate this license on this site?')) {
+                    deactivate.mutate();
+                  }
+                }}
+                disabled={deactivate.isPending}
+              >
+                {deactivate.isPending ? 'Deactivating…' : 'Deactivate'}
+              </Button>
+            )}
+          </div>
+        </form>
       </Card>
 
       <Card>
@@ -172,13 +274,33 @@ function LicenseSettings() {
           <FeatureRow feature="UTM Builder" included />
           <FeatureRow feature="Short Links" included />
           <FeatureRow feature="Contact Management" included />
-          <FeatureRow feature="Popups & Forms" included={status === 'active'} tier="Pro" />
-          <FeatureRow feature="Analytics Dashboard" included={status === 'active'} tier="Pro" />
-          <FeatureRow feature="Multi-site Monitor" included={false} tier="Agency" />
+          <FeatureRow feature="Popups & Forms" included={isActive} tier="Pro" />
+          <FeatureRow feature="Analytics Dashboard" included={isActive} tier="Pro" />
+          <FeatureRow
+            feature="Multi-site Monitor"
+            included={isActive && (tier === 'agency' || tier === 'enterprise')}
+            tier="Agency"
+          />
         </div>
       </Card>
     </div>
   );
+}
+
+function tierLabel(tier?: string): string {
+  if (!tier) return 'Free';
+  return tier.charAt(0).toUpperCase() + tier.slice(1);
+}
+
+function formatExpiry(expiresAt: string | null): string | null {
+  if (!expiresAt) return 'No expiration';
+  const date = new Date(expiresAt);
+  if (Number.isNaN(date.getTime())) return null;
+  return `Expires: ${date.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })}`;
 }
 
 function FeatureRow({ feature, included, tier }: { feature: string; included: boolean; tier?: string }) {
