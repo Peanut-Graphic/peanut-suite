@@ -82,7 +82,7 @@ describe('Accessibility - Component Tests', () => {
 
     it('marks required fields accessibly', async () => {
       const { container } = render(
-        <Input label="Password" name="password" type="password" required />
+        <Input label="Username" name="username" required />
       );
       const input = screen.getByRole('textbox');
       expect(input).toHaveAttribute('required');
@@ -100,8 +100,8 @@ describe('Accessibility - Component Tests', () => {
       );
       const input = screen.getByRole('textbox');
       expect(input).toHaveAttribute('aria-invalid', 'true');
-      const errorMessage = screen.getByText('Username is required');
-      expect(errorMessage).toHaveAttribute('role', 'alert');
+      const alert = screen.getByRole('alert');
+      expect(alert).toHaveTextContent('Username is required');
       const results = await axe(container);
       expect(results).toHaveNoViolations();
     });
@@ -109,10 +109,9 @@ describe('Accessibility - Component Tests', () => {
     it('provides hint text with aria-describedby', async () => {
       const { container } = render(
         <Input
-          label="Password"
-          name="password"
-          type="password"
-          hint="Must be at least 8 characters"
+          label="Username"
+          name="username"
+          hint="Must be at least 3 characters"
         />
       );
       const input = screen.getByRole('textbox');
@@ -209,7 +208,8 @@ describe('Accessibility - Component Tests', () => {
 
     it('supports header with proper heading hierarchy', async () => {
       const { container } = render(
-        <Card header={<h2>Section Title</h2>}>
+        <Card>
+          <h2>Section Title</h2>
           <p>Content</p>
         </Card>
       );
@@ -246,7 +246,7 @@ describe('Accessibility - Component Tests', () => {
   describe('Modal Component', () => {
     it('manages focus with proper role', async () => {
       const { container } = render(
-        <Modal open={true} title="Confirm Action">
+        <Modal isOpen={true} onClose={() => {}} title="Confirm Action">
           <p>Are you sure?</p>
         </Modal>
       );
@@ -258,7 +258,7 @@ describe('Accessibility - Component Tests', () => {
 
     it('includes accessible title', async () => {
       const { container } = render(
-        <Modal open={true} title="Delete Item">
+        <Modal isOpen={true} onClose={() => {}} title="Delete Item">
           <p>This action cannot be undone.</p>
         </Modal>
       );
@@ -270,7 +270,7 @@ describe('Accessibility - Component Tests', () => {
     it('closes with keyboard shortcut', async () => {
       const onClose = () => {};
       const { container } = render(
-        <Modal open={true} title="Modal" onClose={onClose}>
+        <Modal isOpen={true} title="Modal" onClose={onClose}>
           <p>Content</p>
         </Modal>
       );

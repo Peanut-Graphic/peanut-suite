@@ -1,4 +1,4 @@
-import { forwardRef, type SelectHTMLAttributes } from 'react';
+import { forwardRef, useId, type SelectHTMLAttributes } from 'react';
 import { clsx } from 'clsx';
 import { ChevronDown } from 'lucide-react';
 
@@ -32,7 +32,8 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
     },
     ref
   ) => {
-    const selectId = id || props.name;
+    const reactId = useId();
+    const selectId = id || props.name || reactId;
 
     return (
       <div className={clsx(fullWidth && 'w-full')}>
@@ -42,7 +43,11 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
             className="block text-sm font-medium text-slate-700 mb-1"
           >
             {label}
-            {props.required && <span className="text-red-500 ml-1">*</span>}
+            {props.required && (
+              <span className="text-red-500 ml-1" aria-label="required">
+                *
+              </span>
+            )}
           </label>
         )}
 
@@ -50,6 +55,10 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
           <select
             ref={ref}
             id={selectId}
+            aria-invalid={error ? 'true' : 'false'}
+            aria-describedby={
+              error ? `${selectId}-error` : hint ? `${selectId}-hint` : undefined
+            }
             className={clsx(
               'block rounded-lg border bg-white text-slate-900 dark:text-slate-100 appearance-none',
               'focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500',
@@ -80,12 +89,24 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
           </select>
 
           <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
-            <ChevronDown className="w-4 h-4" />
+            <ChevronDown className="w-4 h-4" aria-hidden="true" />
           </div>
         </div>
 
-        {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
-        {hint && !error && <p className="mt-1 text-sm text-slate-500">{hint}</p>}
+        {error && (
+          <p
+            id={`${selectId}-error`}
+            className="mt-1 text-sm text-red-600"
+            role="alert"
+          >
+            {error}
+          </p>
+        )}
+        {hint && !error && (
+          <p id={`${selectId}-hint`} className="mt-1 text-sm text-slate-500">
+            {hint}
+          </p>
+        )}
       </div>
     );
   }
