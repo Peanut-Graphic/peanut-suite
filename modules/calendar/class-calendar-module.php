@@ -23,10 +23,10 @@ class Calendar_Module {
     }
 
     public function __construct() {
-        $this->init();
+        // init() is called by Peanut_Module_Manager after instantiation.
     }
 
-    private function init(): void {
+    public function init(): void {
         add_action('rest_api_init', [$this, 'register_routes']);
 
         // AJAX handlers
