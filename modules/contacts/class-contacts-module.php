@@ -65,7 +65,7 @@ class Contacts_Module {
         $controller->register_routes();
 
         // Register ML lead scoring API routes
-        $scoring_controller = new ML_Lead_Scoring_Controller();
+        $scoring_controller = new \PeanutSuite\Contacts\ML_Lead_Scoring_Controller();
         $scoring_controller->register_routes();
     }
 
