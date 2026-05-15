@@ -83,7 +83,7 @@ class FormFlow_Module {
 
         // Update attribution if visitors module is active
         if (class_exists('Visitors_Database')) {
-            $visitors_db = new Visitors_Database();
+            $visitors_db = new \PeanutSuite\Visitors\Visitors_Database();
             $visitors_db->record_conversion($data['visitor_id'] ?? '', 'formflow', $data);
         }
 
@@ -114,7 +114,7 @@ class FormFlow_Module {
     public function handle_utm_captured(array $utm_data, string $visitor_id): void {
         // Update visitor's UTM data in the visitors module
         if (class_exists('Visitors_Database') && $visitor_id) {
-            $visitors_db = new Visitors_Database();
+            $visitors_db = new \PeanutSuite\Visitors\Visitors_Database();
             $visitors_db->update_visitor_attribution($visitor_id, $utm_data);
         }
     }

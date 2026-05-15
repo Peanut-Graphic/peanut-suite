@@ -249,7 +249,7 @@ class FormFlow_Controller {
     private function process_step_completed(array $data): void {
         // Update visitor journey if tracking module available
         if (class_exists('Visitors_Database')) {
-            $visitors_db = new Visitors_Database();
+            $visitors_db = new \PeanutSuite\Visitors\Visitors_Database();
             $visitors_db->record_touchpoint(
                 $data['visitor_id'] ?? '',
                 'form_step',

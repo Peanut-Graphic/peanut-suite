@@ -62,3 +62,4 @@ service-account*.json
 vendor/
 .phpunit.result.cache
 .phpunit.cache/
+.phpunit.regression.cache/
