@@ -2,6 +2,11 @@
 
 All notable changes to Peanut Suite will be documented in this file.
 
+## [4.1.9] - 2026-05-15
+
+### Fixed
+- Fix fatal "Class not found" — fully-qualify namespaced `ML_Lead_Scoring_Controller` / `Visitors_Database` call sites (caused REST + WP-CLI failure). Prod was hotfixed 2026-05-15; this is the durable release.
+
 ## [4.1.7] - 2026-03-29
 
 ### Security
