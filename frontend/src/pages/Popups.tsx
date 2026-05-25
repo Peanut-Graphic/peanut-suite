@@ -256,8 +256,8 @@ export default function Popups() {
       <Card className="mb-6">
         <div className="flex flex-wrap gap-4">
           <div className="flex-1 min-w-[150px]">
-            <label className="block text-xs font-medium text-slate-500 mb-1">Status</label>
-            <select
+            <label className="block text-xs font-medium text-slate-500 mb-1" htmlFor="popups-status">Status</label>
+            <select id="popups-status"
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900"
               value={popupFilters.status}
               onChange={(e) => setPopupFilter('status', e.target.value)}
@@ -270,8 +270,8 @@ export default function Popups() {
             </select>
           </div>
           <div className="flex-1 min-w-[150px]">
-            <label className="block text-xs font-medium text-slate-500 mb-1">Type</label>
-            <select
+            <label className="block text-xs font-medium text-slate-500 mb-1" htmlFor="popups-type">Type</label>
+            <select id="popups-type"
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900"
               value={popupFilters.type}
               onChange={(e) => setPopupFilter('type', e.target.value)}

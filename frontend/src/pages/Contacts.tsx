@@ -260,8 +260,8 @@ export default function Contacts() {
       <Card className="mb-6">
         <div className="flex flex-wrap gap-4">
           <div className="flex-1 min-w-[150px]">
-            <label className="block text-xs font-medium text-slate-500 mb-1">Status</label>
-            <select
+            <label className="block text-xs font-medium text-slate-500 mb-1" htmlFor="contacts-status">Status</label>
+            <select id="contacts-status"
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900"
               value={contactFilters.status}
               onChange={(e) => setContactFilter('status', e.target.value)}
@@ -275,8 +275,8 @@ export default function Contacts() {
             </select>
           </div>
           <div className="flex-1 min-w-[150px]">
-            <label className="block text-xs font-medium text-slate-500 mb-1">Source</label>
-            <select
+            <label className="block text-xs font-medium text-slate-500 mb-1" htmlFor="contacts-source">Source</label>
+            <select id="contacts-source"
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900"
               value={contactFilters.source}
               onChange={(e) => setContactFilter('source', e.target.value)}
@@ -289,8 +289,8 @@ export default function Contacts() {
             </select>
           </div>
           <div className="flex-1 min-w-[150px]">
-            <label className="block text-xs font-medium text-slate-500 mb-1">Tag</label>
-            <select
+            <label className="block text-xs font-medium text-slate-500 mb-1" htmlFor="contacts-tag">Tag</label>
+            <select id="contacts-tag"
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900"
               value={contactFilters.tag}
               onChange={(e) => setContactFilter('tag', e.target.value)}
