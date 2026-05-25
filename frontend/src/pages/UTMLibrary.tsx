@@ -283,8 +283,8 @@ export default function UTMLibrary() {
       <Card className="mb-6">
         <div className="flex flex-wrap gap-4">
           <div className="flex-1 min-w-[150px]">
-            <label className="block text-xs font-medium text-slate-500 mb-1">Source</label>
-            <select
+            <label className="block text-xs font-medium text-slate-500 mb-1" htmlFor="utmlibrary-source">Source</label>
+            <select id="utmlibrary-source"
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900"
               value={utmFilters.source}
               onChange={(e) => setUTMFilter('source', e.target.value)}
@@ -297,8 +297,8 @@ export default function UTMLibrary() {
             </select>
           </div>
           <div className="flex-1 min-w-[150px]">
-            <label className="block text-xs font-medium text-slate-500 mb-1">Medium</label>
-            <select
+            <label className="block text-xs font-medium text-slate-500 mb-1" htmlFor="utmlibrary-medium">Medium</label>
+            <select id="utmlibrary-medium"
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900"
               value={utmFilters.medium}
               onChange={(e) => setUTMFilter('medium', e.target.value)}
@@ -311,8 +311,8 @@ export default function UTMLibrary() {
             </select>
           </div>
           <div className="flex-1 min-w-[150px]">
-            <label className="block text-xs font-medium text-slate-500 mb-1">Program</label>
-            <select
+            <label className="block text-xs font-medium text-slate-500 mb-1" htmlFor="utmlibrary-program">Program</label>
+            <select id="utmlibrary-program"
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900"
               value={utmFilters.program}
               onChange={(e) => setUTMFilter('program', e.target.value)}
@@ -417,10 +417,10 @@ export default function UTMLibrary() {
 
             {/* Access Level Selection */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2" htmlFor="utmlibrary-access-level">
                 Access Level
               </label>
-              <select
+              <select id="utmlibrary-access-level"
                 className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-900"
                 value={accessLevel}
                 onChange={(e) => setAccessLevel(e.target.value as UTMAccessLevel)}

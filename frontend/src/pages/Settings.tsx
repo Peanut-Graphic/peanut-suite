@@ -87,10 +87,10 @@ function GeneralSettings() {
           helper="Domain used for short links (requires DNS configuration)"
         />
         <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5" htmlFor="settings-timezone">
             Timezone
           </label>
-          <select
+          <select id="settings-timezone"
             className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-lg px-3 py-2 text-sm"
             value={settings.timezone}
             onChange={(e) => setSettings({ ...settings, timezone: e.target.value })}

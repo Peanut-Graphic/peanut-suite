@@ -481,8 +481,8 @@ export default function PopupBuilder() {
                 />
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Background Color</label>
-                    <input
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="popupbuilder-background-color">Background Color</label>
+                    <input id="popupbuilder-background-color"
                       type="color"
                       value={formData.style.background_color}
                       onChange={(e) => updateStyle('background_color', e.target.value)}
@@ -490,8 +490,8 @@ export default function PopupBuilder() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Text Color</label>
-                    <input
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="popupbuilder-text-color">Text Color</label>
+                    <input id="popupbuilder-text-color"
                       type="color"
                       value={formData.style.text_color}
                       onChange={(e) => updateStyle('text_color', e.target.value)}
@@ -499,8 +499,8 @@ export default function PopupBuilder() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Button Color</label>
-                    <input
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="popupbuilder-button-color">Button Color</label>
+                    <input id="popupbuilder-button-color"
                       type="color"
                       value={formData.style.button_color}
                       onChange={(e) => updateStyle('button_color', e.target.value)}
@@ -508,8 +508,8 @@ export default function PopupBuilder() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Button Text Color</label>
-                    <input
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="popupbuilder-button-text-color">Button Text Color</label>
+                    <input id="popupbuilder-button-text-color"
                       type="color"
                       value={formData.style.button_text_color}
                       onChange={(e) => updateStyle('button_text_color', e.target.value)}
