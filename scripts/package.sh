@@ -14,6 +14,20 @@ echo ""
 echo "📦 Packaging $PLUGIN_NAME v$VERSION..."
 echo ""
 
+# Fatal-references sweep — standard pre-ship gate (see Peanut Graphic creed §4).
+# Refuses to build if any require/include path is missing on disk.
+SWEEP="/Users/nattyb/Documents/Peanut/scripts/fatal-references-sweep.py"
+if [[ -f "$SWEEP" ]]; then
+    echo "▸ Running fatal-references sweep…"
+    if ! /usr/bin/python3 "$SWEEP" "$ROOT_DIR"; then
+        echo ""
+        echo "❌ package.sh refuses to build: missing require/include targets."
+        echo "   Fix the references above, or remove the dead require_once lines."
+        exit 1
+    fi
+fi
+
+
 # Create dist directory
 DIST_DIR="$ROOT_DIR/dist"
 BUILD_DIR="$DIST_DIR/$PLUGIN_NAME"
