@@ -95,20 +95,13 @@ class UTM_Module {
 
         $utm_params = [];
 
-        if (!empty($params['utm_source'])) {
-            $utm_params['utm_source'] = $params['utm_source'];
-        }
-        if (!empty($params['utm_medium'])) {
-            $utm_params['utm_medium'] = $params['utm_medium'];
-        }
-        if (!empty($params['utm_campaign'])) {
-            $utm_params['utm_campaign'] = $params['utm_campaign'];
-        }
-        if (!empty($params['utm_term'])) {
-            $utm_params['utm_term'] = $params['utm_term'];
-        }
-        if (!empty($params['utm_content'])) {
-            $utm_params['utm_content'] = $params['utm_content'];
+        // Include any UTM param that was supplied with a non-empty-STRING value.
+        // NB: use a string-emptiness test, not !empty() — !empty('0') is false, which
+        // would silently drop a legitimate UTM value of exactly "0".
+        foreach (['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'] as $key) {
+            if (isset($params[$key]) && (string) $params[$key] !== '') {
+                $utm_params[$key] = $params[$key];
+            }
         }
 
         return $base . $separator . http_build_query($utm_params);
