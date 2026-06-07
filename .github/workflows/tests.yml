@@ -1,0 +1,67 @@
+# Peanut Suite — Testing Protocol v2 nets (security + property).
+#
+# Honest scope: this repo has NO WordPress test harness wired locally/CI yet, so the
+# WP-dependent Legacy + Contract suites cannot boot. What runs here are the nets that
+# DO run without a WP boot:
+#   - Net 2 (security): composer audit + npm audit (non-blocking to start; ratchet later)
+#   - Net 6 (property): PHP pure-function property tests + JS fast-check property tests
+#   - Regression guards (self-contained pure PHP)
+# Net 7 (contract) is BLOCKED until the WP test lib + DB service are added in CI.
+name: tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  php-security-and-property:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          tools: composer
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      # Net 2 — dependency audit (non-blocking to start; ratchet to blocking later).
+      - name: Dependency audit (composer)
+        run: composer audit || true
+
+      # Net 6 — property tests over PURE functions (no WordPress).
+      - name: Property tests
+        run: vendor/bin/phpunit --testsuite=Property
+
+      - name: Regression guards
+        run: vendor/bin/phpunit --testsuite=Regression
+
+  js-security-and-property:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+
+      # Net 2 — dependency audit (non-blocking to start; ratchet later).
+      - name: Dependency audit (npm)
+        run: npm audit --audit-level=high || true
+
+      # Net 6 — fast-check property tests (+ the rest of the vitest suite).
+      - name: Vitest (property + unit + a11y)
+        run: npx vitest run

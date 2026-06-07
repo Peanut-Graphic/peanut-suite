@@ -1,27 +1,40 @@
 <?xml version="1.0"?>
 <phpunit
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.5/phpunit.xsd"
 	bootstrap="tests/bootstrap.php"
 	backupGlobals="false"
 	colors="true"
-	convertErrorsToExceptions="true"
-	convertNoticesToExceptions="true"
-	convertWarningsToExceptions="true"
+	cacheDirectory=".phpunit.cache"
 >
 	<testsuites>
-		<testsuite name="Peanut Suite Test Suite">
+		<!-- Net 6: property-based + fuzz tests over PURE functions (no WordPress). -->
+		<testsuite name="Property">
+			<directory suffix="Test.php">./tests/Property/</directory>
+		</testsuite>
+		<!-- Net 7: seam/contract tests (require a booting WP harness). -->
+		<testsuite name="Contract">
+			<directory suffix="Test.php">./tests/Contract/</directory>
+		</testsuite>
+		<!-- Regression guards (self-contained pure PHP). -->
+		<testsuite name="Regression">
+			<directory suffix="Test.php">./tests/Regression/</directory>
+		</testsuite>
+		<!-- Legacy WordPress-dependent suite (needs the WP test lib bootstrap). -->
+		<testsuite name="Legacy">
 			<directory prefix="test-" suffix=".php">./tests/</directory>
 		</testsuite>
 	</testsuites>
-	<filter>
-		<whitelist processUncoveredFilesFromWhitelist="true">
+	<source>
+		<include>
 			<directory suffix=".php">./core/</directory>
 			<directory suffix=".php">./modules/</directory>
-			<exclude>
-				<directory suffix=".php">./vendor/</directory>
-				<directory suffix=".php">./node_modules/</directory>
-			</exclude>
-		</whitelist>
-	</filter>
+		</include>
+		<exclude>
+			<directory suffix=".php">./vendor/</directory>
+			<directory suffix=".php">./node_modules/</directory>
+		</exclude>
+	</source>
 	<php>
 		<const name="PEANUT_TEST_MODE" value="true"/>
 	</php>
