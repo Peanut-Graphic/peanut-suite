@@ -57,7 +57,7 @@ class WhiteLabel_Module {
             'company_logo' => esc_url_raw($_POST['company_logo'] ?? ''),
             'primary_color' => sanitize_hex_color($_POST['primary_color'] ?? '#2271b1'),
             'secondary_color' => sanitize_hex_color($_POST['secondary_color'] ?? '#135e96'),
-            'hide_peanut_branding' => !empty($_POST['hide_peanut_branding']),
+            'hide_peanut_branding' => isset($_POST['hide_peanut_branding']) && $_POST['hide_peanut_branding'] !== '' && $_POST['hide_peanut_branding'] !== '0',
             'report_logo' => esc_url_raw($_POST['report_logo'] ?? ''),
             'report_footer' => sanitize_textarea_field($_POST['report_footer'] ?? ''),
             'custom_css' => wp_strip_all_tags($_POST['custom_css'] ?? ''),

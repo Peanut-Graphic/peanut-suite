@@ -66,7 +66,7 @@ class Sequences_Module {
             'status' => sanitize_text_field($_POST['status'] ?? 'draft'),
         ];
 
-        $id = !empty($_POST['id']) ? intval($_POST['id']) : 0;
+        $id = isset($_POST['id']) && $_POST['id'] !== '' ? intval($_POST['id']) : 0;
 
         if ($id > 0) {
             $wpdb->update($table, $data, ['id' => $id]);

@@ -76,7 +76,7 @@ class Notifications_Module {
         }
 
         $events = [];
-        if (!empty($_POST['events']) && is_array($_POST['events'])) {
+        if (isset($_POST['events']) && is_array($_POST['events'])) {
             foreach ($_POST['events'] as $event => $channels) {
                 $events[sanitize_key($event)] = array_map('sanitize_text_field', (array) $channels);
             }

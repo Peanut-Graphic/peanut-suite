@@ -109,7 +109,7 @@ class Peanut_Encryption {
             return str_repeat('*', $length);
         }
         $start = substr($data, 0, $visible_start);
-        $end = substr($data, -$visible_end);
+        $end = $visible_end > 0 ? substr($data, $length - $visible_end) : '';
         $middle = str_repeat('*', $length - $visible_start - $visible_end);
         return $start . $middle . $end;
     }

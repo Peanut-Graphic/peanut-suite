@@ -54,10 +54,10 @@ class Accessibility_Module {
         }
 
         $settings = [
-            'widget_enabled' => !empty($_POST['widget_enabled']),
+            'widget_enabled' => isset($_POST['widget_enabled']) && $_POST['widget_enabled'] !== '' && $_POST['widget_enabled'] !== '0',
             'widget_position' => sanitize_text_field($_POST['widget_position'] ?? 'bottom-right'),
             'widget_color' => sanitize_hex_color($_POST['widget_color'] ?? '#2271b1'),
-            'skip_link' => !empty($_POST['skip_link']),
+            'skip_link' => isset($_POST['skip_link']) && $_POST['skip_link'] !== '' && $_POST['skip_link'] !== '0',
         ];
 
         update_option('peanut_accessibility_settings', $settings);

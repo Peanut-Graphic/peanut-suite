@@ -53,7 +53,7 @@ class Calendar_Module {
             'scheduled_date' => sanitize_text_field($_POST['scheduled_date'] ?? ''),
         ];
 
-        $id = !empty($_POST['id']) ? intval($_POST['id']) : 0;
+        $id = isset($_POST['id']) && $_POST['id'] !== '' ? intval($_POST['id']) : 0;
 
         if ($id > 0) {
             $wpdb->update($table, $data, ['id' => $id]);
