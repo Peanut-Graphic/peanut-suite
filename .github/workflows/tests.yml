@@ -1,12 +1,12 @@
-# Peanut Suite — Testing Protocol v2 nets (security + property).
+# Peanut Suite — Testing Protocol v2 nets (security + property) + CLASS-007 static gate.
 #
-# Honest scope: this repo has NO WordPress test harness wired locally/CI yet, so the
-# WP-dependent Legacy + Contract suites cannot boot. What runs here are the nets that
-# DO run without a WP boot:
+# Honest scope: the WP-dependent contract suite (net 7) boots in its own workflow
+# (wp-contract.yml) against a real WordPress + MySQL. The jobs here are the ones that
+# run WITHOUT a WP boot, plus the blocking CLASS-007 static foot-gun gate:
+#   - static-footguns (CLASS-007): semgrep over modules/ + core/ (BLOCKING)
 #   - Net 2 (security): composer audit + npm audit (non-blocking to start; ratchet later)
 #   - Net 6 (property): PHP pure-function property tests + JS fast-check property tests
 #   - Regression guards (self-contained pure PHP)
-# Net 7 (contract) is BLOCKED until the WP test lib + DB service are added in CI.
 name: tests
 
 on:
@@ -14,7 +14,30 @@ on:
     branches: [ main ]
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  static-footguns:
+    name: CLASS-007 Static Foot-gun Gate
+    runs-on: [self-hosted, linux, peanut-ci]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install semgrep
+        run: pip install semgrep
+
+      - name: Semgrep CLASS-007 foot-gun gate (blocking)
+        run: semgrep --config .peanut/static-rules/peanut-php-footguns.yml modules/ core/ --error
+
   php-security-and-property:
     runs-on: ubuntu-latest
     steps:

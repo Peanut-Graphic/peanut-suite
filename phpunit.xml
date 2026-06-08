@@ -1,11 +1,13 @@
 <?xml version="1.0"?>
 <phpunit
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.5/phpunit.xsd"
+	xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/9.6/phpunit.xsd"
 	bootstrap="tests/bootstrap.php"
 	backupGlobals="false"
 	colors="true"
-	cacheDirectory=".phpunit.cache"
+	convertErrorsToExceptions="true"
+	convertNoticesToExceptions="true"
+	convertWarningsToExceptions="true"
 >
 	<testsuites>
 		<!-- Net 6: property-based + fuzz tests over PURE functions (no WordPress). -->
@@ -25,7 +27,7 @@
 			<directory prefix="test-" suffix=".php">./tests/</directory>
 		</testsuite>
 	</testsuites>
-	<source>
+	<coverage>
 		<include>
 			<directory suffix=".php">./core/</directory>
 			<directory suffix=".php">./modules/</directory>
@@ -34,7 +36,7 @@
 			<directory suffix=".php">./vendor/</directory>
 			<directory suffix=".php">./node_modules/</directory>
 		</exclude>
-	</source>
+	</coverage>
 	<php>
 		<const name="PEANUT_TEST_MODE" value="true"/>
 	</php>

@@ -108,10 +108,8 @@ class Peanut_Encryption {
         if ($length <= $visible_start + $visible_end) {
             return str_repeat('*', $length);
         }
-        $start = $visible_start > 0 ? substr($data, 0, $visible_start) : '';
-        // NB: substr($data, -0) returns the WHOLE string, so guard $visible_end === 0
-        // explicitly — otherwise mask() would leak the entire value it must hide.
-        $end = $visible_end > 0 ? substr($data, -$visible_end) : '';
+        $start = substr($data, 0, $visible_start);
+        $end = $visible_end > 0 ? substr($data, $length - $visible_end) : '';
         $middle = str_repeat('*', $length - $visible_start - $visible_end);
         return $start . $middle . $end;
     }
