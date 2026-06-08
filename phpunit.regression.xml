@@ -1,14 +1,14 @@
 <?xml version="1.0"?>
 <phpunit
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.5/phpunit.xsd"
+	xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/9.6/phpunit.xsd"
+	bootstrap="tests/bootstrap.php"
 	backupGlobals="false"
 	colors="true"
-	cacheDirectory=".phpunit.regression.cache"
 >
 	<testsuites>
 		<testsuite name="regression">
-			<directory>./tests/Regression/</directory>
+			<directory suffix="Test.php">./tests/Regression/</directory>
 		</testsuite>
 	</testsuites>
 </phpunit>

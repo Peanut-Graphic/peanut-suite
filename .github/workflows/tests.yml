@@ -1,12 +1,18 @@
-name: Tests
+# Peanut Suite — Testing Protocol v2 nets (security + property) + CLASS-007 static gate.
+#
+# Honest scope: the WP-dependent contract suite (net 7) boots in its own workflow
+# (wp-contract.yml) against a real WordPress + MySQL. The jobs here are the ones that
+# run WITHOUT a WP boot, plus the blocking CLASS-007 static foot-gun gate:
+#   - static-footguns (CLASS-007): semgrep over modules/ + core/ (BLOCKING)
+#   - Net 2 (security): composer audit + npm audit (non-blocking to start; ratchet later)
+#   - Net 6 (property): PHP pure-function property tests + JS fast-check property tests
+#   - Regression guards (self-contained pure PHP)
+name: tests
 
 on:
-  pull_request:
-    branches:
-      - main
   push:
-    branches:
-      - main
+    branches: [ main ]
+  pull_request:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -31,3 +37,54 @@ jobs:
 
       - name: Semgrep CLASS-007 foot-gun gate (blocking)
         run: semgrep --config .peanut/static-rules/peanut-php-footguns.yml modules/ core/ --error
+
+  php-security-and-property:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          tools: composer
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      # Net 2 — dependency audit (non-blocking to start; ratchet to blocking later).
+      - name: Dependency audit (composer)
+        run: composer audit || true
+
+      # Net 6 — property tests over PURE functions (no WordPress).
+      - name: Property tests
+        run: vendor/bin/phpunit --testsuite=Property
+
+      - name: Regression guards
+        run: vendor/bin/phpunit --testsuite=Regression
+
+  js-security-and-property:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+
+      # Net 2 — dependency audit (non-blocking to start; ratchet later).
+      - name: Dependency audit (npm)
+        run: npm audit --audit-level=high || true
+
+      # Net 6 — fast-check property tests (+ the rest of the vitest suite).
+      - name: Vitest (property + unit + a11y)
+        run: npx vitest run
