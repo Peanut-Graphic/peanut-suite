@@ -1,0 +1,23 @@
+{
+    "name": "peanutgraphic/peanut-suite",
+    "description": "Peanut Suite WordPress plugin - marketing toolkit (UTM, links, contacts, popups, analytics).",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "php": ">=8.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.6",
+        "wp-phpunit/wp-phpunit": "^6.4",
+        "yoast/phpunit-polyfills": "^2.0"
+    },
+    "config": {
+        "platform": {
+            "php": "8.3"
+        },
+        "allow-plugins": {
+            "composer/installers": true
+        },
+        "sort-packages": true
+    }
+}
