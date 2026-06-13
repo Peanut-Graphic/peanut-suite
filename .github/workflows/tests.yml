@@ -21,7 +21,7 @@ concurrency:
 jobs:
   static-footguns:
     name: CLASS-007 Static Foot-gun Gate
-    runs-on: [self-hosted, linux, peanut-ci]   # pure static (semgrep only) — GitHub-hosted so the security gate never depends on the self-hosted pool
+    runs-on: ubuntu-latest   # pure static (semgrep only) — GitHub-hosted so the security gate never depends on the self-hosted pool
 
     steps:
       - name: Checkout code
