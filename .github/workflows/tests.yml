@@ -21,7 +21,7 @@ concurrency:
 jobs:
   static-footguns:
     name: CLASS-007 Static Foot-gun Gate
-    runs-on: ubuntu-latest   # pure static (semgrep only) — GitHub-hosted so the security gate never depends on the self-hosted pool
+    runs-on: [self-hosted, linux, peanut-ci]   # pure static (semgrep only) — GitHub-hosted so the security gate never depends on the self-hosted pool
 
     steps:
       - name: Checkout code
@@ -39,7 +39,7 @@ jobs:
         run: semgrep --config .peanut/static-rules/peanut-php-footguns.yml modules/ core/ --error
 
   php-security-and-property:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, peanut-ci]
     steps:
       - uses: actions/checkout@v4
 
@@ -64,7 +64,7 @@ jobs:
         run: vendor/bin/phpunit --testsuite=Regression
 
   js-security-and-property:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, peanut-ci]
     defaults:
       run:
         working-directory: frontend
