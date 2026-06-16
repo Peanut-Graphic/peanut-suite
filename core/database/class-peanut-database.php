@@ -14,7 +14,7 @@ class Peanut_Database {
     /**
      * Database version
      */
-    private const DB_VERSION = '2.1.0';
+    private const DB_VERSION = '2.2.0';
 
     /**
      * Table names
@@ -133,6 +133,7 @@ class Peanut_Database {
             company varchar(255) DEFAULT NULL,
             status varchar(50) DEFAULT 'lead',
             source varchar(100) DEFAULT NULL,
+            source_detail varchar(255) DEFAULT NULL,
             utm_source varchar(255) DEFAULT NULL,
             utm_medium varchar(255) DEFAULT NULL,
             utm_campaign varchar(255) DEFAULT NULL,

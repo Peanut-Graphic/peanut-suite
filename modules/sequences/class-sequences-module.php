@@ -679,6 +679,8 @@ class Sequences_Module {
             description text,
             trigger_type varchar(50) DEFAULT 'manual',
             trigger_value varchar(200) DEFAULT '',
+            from_email varchar(255) DEFAULT '',
+            from_name varchar(255) DEFAULT '',
             status varchar(20) DEFAULT 'draft',
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id)
