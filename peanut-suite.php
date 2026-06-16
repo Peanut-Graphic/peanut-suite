@@ -138,6 +138,21 @@ function peanut_deactivate() {
 register_deactivation_hook(__FILE__, 'peanut_deactivate');
 
 /**
+ * Self-heal the database schema on plugin upgrade.
+ *
+ * The GitHub self-updater swaps plugin files in place and never re-fires the
+ * activation hook, so schema changes shipped in an update would otherwise never
+ * reach existing installs. This cheap, get_option-gated check re-runs the
+ * idempotent dbDelta migrations when peanut_db_version is stale. Runs on
+ * plugins_loaded so it covers admin, cron and WP-CLI contexts.
+ */
+function peanut_maybe_upgrade_db() {
+    require_once PEANUT_PLUGIN_DIR . 'core/database/class-peanut-database.php';
+    Peanut_Database::maybe_upgrade();
+}
+add_action('plugins_loaded', 'peanut_maybe_upgrade_db');
+
+/**
  * Initialize the plugin (on init for WordPress 6.7+ translation compatibility)
  */
 function peanut_init() {

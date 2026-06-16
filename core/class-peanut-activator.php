@@ -95,9 +95,13 @@ class Peanut_Activator {
     }
 
     /**
-     * Create module-specific tables
+     * Create module-specific tables.
+     *
+     * Public so Peanut_Database::maybe_upgrade() can re-run module migrations
+     * on plugin self-update (the updater never re-activates). dbDelta inside
+     * each module creator is idempotent/additive.
      */
-    private static function create_module_tables(): void {
+    public static function create_module_tables(): void {
         // Webhooks module tables
         $webhooks_db = PEANUT_PLUGIN_DIR . 'modules/webhooks/class-webhooks-database.php';
         if (file_exists($webhooks_db)) {

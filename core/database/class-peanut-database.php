@@ -477,4 +477,73 @@ class Peanut_Database {
         $current = get_option('peanut_db_version', '0');
         return version_compare($current, self::DB_VERSION, '<');
     }
+
+    /**
+     * The DB schema version this build of the plugin ships.
+     */
+    public static function current_db_version(): string {
+        return self::DB_VERSION;
+    }
+
+    /**
+     * Self-heal the schema on plugin upgrade.
+     *
+     * Migrations historically ran ONLY in the activation hook, but the GitHub
+     * self-updater swaps files in place and never re-activates — so schema
+     * changes shipped in an update never reached existing installs. This is the
+     * structural root cause behind the silent write-vs-schema drift bugs.
+     *
+     * maybe_upgrade() is hooked on plugins_loaded. It is cheap: a single
+     * get_option gate. Only when the stored peanut_db_version is older than the
+     * version this build ships (or the option is missing) does it re-run the
+     * core + module table creators. dbDelta is idempotent and additive, so
+     * re-running it on an up-to-date DB is harmless, and re-running it on a
+     * drifted one adds the missing columns.
+     *
+     * Mirrors peanut-connect's check_db_version() self-heal pattern.
+     *
+     * @param callable|null $migrator Optional override (for tests). When null,
+     *                                runs the real core + module migrations.
+     * @return bool True if a migration ran, false if the schema was current.
+     */
+    public static function maybe_upgrade(?callable $migrator = null): bool {
+        $installed = get_option('peanut_db_version', '0');
+
+        // Cheap gate: nothing to do once we are at (or past) the shipped version.
+        if (version_compare((string) $installed, self::DB_VERSION, '>=')) {
+            return false;
+        }
+
+        if ($migrator === null) {
+            self::run_all_migrations();
+        } else {
+            $migrator();
+        }
+
+        update_option('peanut_db_version', self::DB_VERSION);
+        return true;
+    }
+
+    /**
+     * Run the core table creators plus every active module's table creator.
+     *
+     * Re-uses the activator's module-table routine so there is a single source
+     * of truth for which modules own tables. dbDelta inside each is idempotent.
+     */
+    private static function run_all_migrations(): void {
+        self::create_tables();
+
+        // Re-run module table creators (additive/idempotent). The activator
+        // already enumerates every module DB class; reuse it rather than
+        // duplicating the list here.
+        if (!class_exists('Peanut_Activator')) {
+            $activator = PEANUT_PLUGIN_DIR . 'core/class-peanut-activator.php';
+            if (defined('PEANUT_PLUGIN_DIR') && file_exists($activator)) {
+                require_once $activator;
+            }
+        }
+        if (method_exists('Peanut_Activator', 'create_module_tables')) {
+            Peanut_Activator::create_module_tables();
+        }
+    }
 }
