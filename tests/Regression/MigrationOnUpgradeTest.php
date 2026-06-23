@@ -43,9 +43,10 @@ final class MigrationOnUpgradeTest extends TestCase
         }
         require_once $this->repoRoot() . '/core/database/class-peanut-database.php';
 
-        // Reset mock option store between tests.
-        global $mock_options;
+        // Reset mock option/transient store between tests.
+        global $mock_options, $mock_transients;
         $mock_options = [];
+        $mock_transients = [];
     }
 
     public function test_maybe_upgrade_method_exists(): void
@@ -93,6 +94,11 @@ final class MigrationOnUpgradeTest extends TestCase
     public function test_noop_when_version_current(): void
     {
         update_option('peanut_db_version', \Peanut_Database::current_db_version());
+        // Steady state: the schema-drift check has already passed recently, so
+        // its result is cached in the transient and maybe_upgrade() takes the
+        // fast path without touching $wpdb. (The drift self-heal is covered by
+        // SchemaSelfHealTest.)
+        set_transient('peanut_suite_schema_ok', \Peanut_Database::current_db_version(), 3600);
 
         $ran = false;
         $result = \Peanut_Database::maybe_upgrade(function () use (&$ran): void {

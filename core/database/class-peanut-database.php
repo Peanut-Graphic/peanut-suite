@@ -12,9 +12,53 @@ if (!defined('ABSPATH')) {
 class Peanut_Database {
 
     /**
-     * Database version
+     * Database version.
+     *
+     * 2.6.0 — bumped ABOVE the value some production installs already recorded
+     * ('2.5.0', written by earlier work whose constant lagged behind) so the
+     * version-gated upgrade path triggers for them too. The real defence is the
+     * schema-drift self-heal below, which re-runs the migration when an expected
+     * column is actually missing regardless of what the version option claims.
      */
-    private const DB_VERSION = '2.2.0';
+    private const DB_VERSION = '2.6.0';
+
+    /**
+     * Transient that caches a passing schema-drift check so the SHOW COLUMNS /
+     * INFORMATION_SCHEMA introspection does not run on every request. Value is
+     * DB_VERSION; presence means "schema verified for this version". Mirrors
+     * peanut-connect's SCHEMA_OK_TRANSIENT self-heal pattern.
+     */
+    private const SCHEMA_OK_TRANSIENT = 'peanut_suite_schema_ok';
+
+    /**
+     * How long a passing schema check is trusted before re-verifying.
+     */
+    private const SCHEMA_OK_TTL = 3600; // HOUR_IN_SECONDS
+
+    /**
+     * Columns this build of the plugin EXPECTS to exist, keyed by the table
+     * suffix after the `peanut_` prefix. Keep in sync with the dbDelta CREATE
+     * TABLE definitions: every column a recent reliability fix added or depends
+     * on must be listed here so a drifted install is detected and self-healed.
+     *
+     * Each entry maps column => column definition (the DDL used to ADD it back
+     * onto an existing table). The definition mirrors the CREATE TABLE schema.
+     *
+     * @var array<string,array<string,string>>
+     */
+    private const EXPECTED_COLUMNS = [
+        // contacts.source_detail — written by the popups module; absent on
+        // older installs. This is the exact production drift this fix heals.
+        'contacts'  => [
+            'source_detail' => "varchar(255) DEFAULT NULL",
+        ],
+        // sequences.from_email / from_name — written by the sequences AJAX
+        // handler; added to the schema by the reliability PR.
+        'sequences' => [
+            'from_email' => "varchar(255) DEFAULT ''",
+            'from_name'  => "varchar(255) DEFAULT ''",
+        ],
+    ];
 
     /**
      * Table names
@@ -509,19 +553,120 @@ class Peanut_Database {
     public static function maybe_upgrade(?callable $migrator = null): bool {
         $installed = get_option('peanut_db_version', '0');
 
-        // Cheap gate: nothing to do once we are at (or past) the shipped version.
-        if (version_compare((string) $installed, self::DB_VERSION, '>=')) {
+        $version_stale = version_compare((string) $installed, self::DB_VERSION, '<');
+
+        // A version-only gate is the production bug: a site whose option was
+        // already AHEAD of the shipped constant (e.g. '2.5.0' vs an older
+        // '2.2.0') returned early here and NEVER ran the migration, so a column
+        // the schema expects (contacts.source_detail) was never added to the
+        // existing table. Trusting the option without verifying the schema is a
+        // one-way trap. So: migrate when the version is stale OR the actual
+        // schema is missing an expected column.
+        if (!$version_stale && self::schema_is_current()) {
             return false;
         }
 
         if ($migrator === null) {
             self::run_all_migrations();
+            // dbDelta is finicky about detecting new columns on existing tables
+            // (exact-format dependent). Belt-and-suspenders: explicitly ADD any
+            // expected column still missing afterward. Idempotent.
+            self::heal_drifted_columns();
         } else {
             $migrator();
         }
 
         update_option('peanut_db_version', self::DB_VERSION);
+        // Force a fresh verification now that we've migrated.
+        delete_transient(self::SCHEMA_OK_TRANSIENT);
         return true;
+    }
+
+    /**
+     * Verify the actual DB schema contains every column this build expects.
+     *
+     * Returns false on drift (a one-way trap when the version option lies),
+     * which maybe_upgrade() treats as a migration trigger. A passing result is
+     * cached in a transient so the introspection is cheap on every request —
+     * the expensive SHOW COLUMNS probes only run when the cache is cold or a
+     * column was previously found missing. Mirrors peanut-connect's
+     * schema_matches_current_version().
+     */
+    public static function schema_is_current(): bool {
+        if (get_transient(self::SCHEMA_OK_TRANSIENT) === self::DB_VERSION) {
+            return true;
+        }
+
+        foreach (self::EXPECTED_COLUMNS as $suffix => $columns) {
+            $table = self::table($suffix);
+            foreach (array_keys($columns) as $column) {
+                if (!self::column_exists($table, $column)) {
+                    return false; // drift — do NOT cache a failing state.
+                }
+            }
+        }
+
+        set_transient(self::SCHEMA_OK_TRANSIENT, self::DB_VERSION, self::SCHEMA_OK_TTL);
+        return true;
+    }
+
+    /**
+     * Whether $column exists on $table. Uses INFORMATION_SCHEMA (one indexed
+     * lookup, no row scan) — cheap and accurate on MySQL 5.7+/MariaDB 10.2+.
+     */
+    private static function column_exists(string $table, string $column): bool {
+        global $wpdb;
+
+        $exists = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+            $wpdb->dbname,
+            $table,
+            $column
+        ));
+
+        return (bool) $exists;
+    }
+
+    /**
+     * Explicitly ADD any expected column that is missing from its (existing)
+     * table. dbDelta is unreliable at detecting new columns when the CREATE
+     * TABLE formatting drifts even slightly, so this is the dependable path the
+     * sibling plugins settled on: SHOW-COLUMNS-guarded, idempotent ALTERs.
+     *
+     * Safe to call repeatedly: columns that already exist are skipped, and a
+     * table that does not exist yet is skipped (create_tables() builds it).
+     */
+    public static function heal_drifted_columns(): void {
+        global $wpdb;
+
+        foreach (self::EXPECTED_COLUMNS as $suffix => $columns) {
+            $table = self::table($suffix);
+
+            // Skip tables that do not exist yet — create_tables() owns those.
+            $table_exists = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+                 WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s",
+                $wpdb->dbname,
+                $table
+            ));
+            if (!$table_exists) {
+                continue;
+            }
+
+            foreach ($columns as $column => $definition) {
+                if (self::column_exists($table, $column)) {
+                    continue;
+                }
+                // Identifiers are internally derived (table suffix + a static
+                // column map), never user input. %i isn't available on all
+                // supported WP versions for column names, so interpolate the
+                // vetted identifier directly.
+                $wpdb->query(
+                    "ALTER TABLE `{$table}` ADD COLUMN `{$column}` {$definition}" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+                );
+            }
+        }
     }
 
     /**
