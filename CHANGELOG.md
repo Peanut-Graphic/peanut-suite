@@ -1,3 +1,8 @@
+## 4.2.1
+
+### Fixed
+- Migration self-heal now triggers on actual schema drift, not just a stale version option. A production site whose `peanut_db_version` had been recorded ahead of the shipped `DB_VERSION` constant skipped the migration entirely, so `contacts.source_detail` (and `sequences.from_email`/`from_name`) were never added to existing tables and writes silently failed. `maybe_upgrade()` now runs when EITHER the version is stale OR a column the build expects is missing, and adds any drifted columns via idempotent SHOW-COLUMNS-guarded `ALTER TABLE ... ADD COLUMN`. Passing schema checks are cached in a transient so the introspection stays cheap. Mirrors peanut-connect's `check_db_version()` self-heal. `DB_VERSION` bumped to 2.6.0 (above production's 2.5.0) so version-gated installs also trigger.
+
 ## 4.2.0
 
 - Schema-drift & reliability fixes (popups source_detail, calendar/sequences columns), self-healing migration-on-upgrade, bounded SEO cron, CI schema-drift guard (#14).
