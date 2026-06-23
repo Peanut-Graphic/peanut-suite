@@ -1,3 +1,7 @@
+## 4.2.0
+
+- Schema-drift & reliability fixes (popups source_detail, calendar/sequences columns), self-healing migration-on-upgrade, bounded SEO cron, CI schema-drift guard (#14).
+
 # Changelog
 
 All notable changes to Peanut Suite will be documented in this file.
