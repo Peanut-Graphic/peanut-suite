@@ -237,8 +237,23 @@ class SEO_Module {
         global $wpdb;
         $table = $wpdb->prefix . 'peanut_seo_keywords';
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $table uses $wpdb->prefix which is not user-controlled
-        $keywords = $wpdb->get_results("SELECT * FROM $table", ARRAY_A);
+        // Cap the per-run batch. An unbounded SELECT + external lookup + sleep(2)
+        // per row would approach (and on large installs exceed) max_execution_time
+        // and never finish. We process the least-recently-checked keywords first
+        // (NULL last_checked sorts first in ASC), so every keyword is eventually
+        // refreshed across runs. Mirrors the backlinks module's LIMIT 50 batching.
+        $batch_size = (int) apply_filters('peanut_seo_rankings_batch_size', 50);
+        if ($batch_size < 1) {
+            $batch_size = 50;
+        }
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $table uses $wpdb->prefix (not user-controlled); LIMIT is a prepared int
+        $keywords = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM $table ORDER BY last_checked ASC LIMIT %d",
+            $batch_size
+        ), ARRAY_A);
+
+        $total = count($keywords);
         $checked = 0;
 
         foreach ($keywords as $keyword) {
@@ -246,7 +261,7 @@ class SEO_Module {
             $checked++;
 
             // Rate limit - don't hammer search engines
-            if ($checked < count($keywords)) {
+            if ($checked < $total) {
                 sleep(2);
             }
         }

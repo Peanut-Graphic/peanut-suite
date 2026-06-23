@@ -359,7 +359,7 @@ class Popups_Module {
             ]);
         } else {
             // Create new contact
-            $wpdb->insert($contacts_table, [
+            $inserted = $wpdb->insert($contacts_table, [
                 'user_id' => get_current_user_id() ?: 1,
                 'email' => sanitize_email($form_data['email']),
                 'first_name' => sanitize_text_field($form_data['first_name'] ?? ''),
@@ -372,7 +372,20 @@ class Popups_Module {
                 'updated_at' => current_time('mysql'),
             ]);
 
-            $contact_id = $wpdb->insert_id;
+            // Bail out loudly if the insert failed instead of reading a stale
+            // insert_id and logging activity against the wrong (or no) contact.
+            if ($inserted === false) {
+                if (function_exists('peanut_log_error')) {
+                    peanut_log_error(
+                        'Failed to create contact from popup: ' . $wpdb->last_error,
+                        'error',
+                        'popups'
+                    );
+                }
+                return;
+            }
+
+            $contact_id = (int) $wpdb->insert_id;
 
             // Log activity
             $this->log_contact_activity($contact_id, 'created', [

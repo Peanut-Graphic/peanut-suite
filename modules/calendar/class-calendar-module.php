@@ -49,8 +49,10 @@ class Calendar_Module {
         $data = [
             'title' => sanitize_text_field($_POST['title'] ?? ''),
             'description' => sanitize_textarea_field($_POST['description'] ?? ''),
-            'type' => sanitize_text_field($_POST['type'] ?? 'other'),
-            'scheduled_date' => sanitize_text_field($_POST['scheduled_date'] ?? ''),
+            // Column names must match the dbDelta schema (event_type/event_date),
+            // not the $_POST field aliases — the old keys silently failed inserts.
+            'event_type' => sanitize_text_field($_POST['type'] ?? 'other'),
+            'event_date' => sanitize_text_field($_POST['scheduled_date'] ?? ''),
         ];
 
         $id = isset($_POST['id']) && $_POST['id'] !== '' ? intval($_POST['id']) : 0;
