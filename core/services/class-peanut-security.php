@@ -144,26 +144,29 @@ class Peanut_Security {
     }
 
     /**
-     * Get client IP (Cloudflare-aware)
+     * Get client IP.
+     *
+     * Security: the connecting peer (REMOTE_ADDR) is the only value an attacker
+     * cannot forge. Client-supplied forwarding headers (X-Forwarded-For,
+     * CF-Connecting-IP, X-Real-IP, ...) are trusted ONLY when the direct peer is
+     * a configured trusted proxy — otherwise anyone could spoof their IP to evade
+     * rate limiting or poison security logs. Configure real proxies/load-balancers
+     * via the PEANUT_TRUSTED_PROXIES constant or the `peanut_trusted_proxies`
+     * option (comma-separated list, or array). Empty by default = REMOTE_ADDR only.
      */
     public static function get_client_ip(): string {
-        $ip_keys = [
-            'HTTP_CF_CONNECTING_IP',
-            'HTTP_X_FORWARDED_FOR',
-            'HTTP_X_REAL_IP',
-            'HTTP_X_CLUSTER_CLIENT_IP',
-            'HTTP_CLIENT_IP',
-            'REMOTE_ADDR',
-        ];
+        $remote = isset($_SERVER['REMOTE_ADDR']) ? trim((string) $_SERVER['REMOTE_ADDR']) : '';
 
-        foreach ($ip_keys as $key) {
-            if (!empty($_SERVER[$key])) {
-                $ip = $_SERVER[$key];
+        if ($remote !== '' && self::is_trusted_proxy($remote)) {
+            // Behind a trusted proxy: honor the forwarding headers it set.
+            foreach (['HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR', 'HTTP_X_REAL_IP'] as $key) {
+                if (empty($_SERVER[$key])) {
+                    continue;
+                }
+                $ip = (string) $_SERVER[$key];
+                // XFF is "client, proxy1, proxy2" — the left-most is the client.
                 if (str_contains($ip, ',')) {
                     $ip = trim(explode(',', $ip)[0]);
-                }
-                if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
-                    return $ip;
                 }
                 if (filter_var($ip, FILTER_VALIDATE_IP)) {
                     return $ip;
@@ -171,7 +174,37 @@ class Peanut_Security {
             }
         }
 
+        if (filter_var($remote, FILTER_VALIDATE_IP)) {
+            return $remote;
+        }
+
         return '0.0.0.0';
+    }
+
+    /**
+     * Whether a direct-peer IP is a configured trusted proxy.
+     *
+     * Reads the PEANUT_TRUSTED_PROXIES constant first, then the
+     * `peanut_trusted_proxies` option (comma-separated string or array).
+     * Exact IP match only — CIDR ranges are intentionally out of scope here.
+     */
+    private static function is_trusted_proxy(string $ip): bool {
+        $proxies = [];
+
+        if (defined('PEANUT_TRUSTED_PROXIES') && PEANUT_TRUSTED_PROXIES) {
+            $proxies = explode(',', (string) PEANUT_TRUSTED_PROXIES);
+        } elseif (function_exists('get_option')) {
+            $opt = get_option('peanut_trusted_proxies', '');
+            if (is_array($opt)) {
+                $proxies = $opt;
+            } elseif (is_string($opt) && $opt !== '') {
+                $proxies = explode(',', $opt);
+            }
+        }
+
+        $proxies = array_filter(array_map('trim', $proxies));
+
+        return $proxies !== [] && in_array($ip, $proxies, true);
     }
 
     /**

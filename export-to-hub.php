@@ -24,6 +24,39 @@ class Peanut_Hub_Exporter {
         if (!file_exists($this->export_dir)) {
             wp_mkdir_p($this->export_dir);
         }
+
+        // The export dir lives under wp-content (web-readable) and holds full
+        // PII dumps. Drop an index-protected + web-denied pair so the JSON files
+        // can't be fetched directly, mirroring how WP core protects private dirs.
+        self::harden_export_dir($this->export_dir);
+    }
+
+    /**
+     * Block direct web access to an export directory.
+     *
+     * Writes a `.htaccess` (Apache 2.2 + 2.4) that denies all requests and an
+     * empty `index.php` so servers that ignore .htaccess still don't list/serve
+     * the directory. Kept static + dependency-free so it is unit-testable.
+     */
+    public static function harden_export_dir($dir) {
+        if (!is_dir($dir)) {
+            return;
+        }
+
+        $htaccess = $dir . '/.htaccess';
+        if (!file_exists($htaccess)) {
+            @file_put_contents(
+                $htaccess,
+                "# Peanut Suite: deny web access to PII export artifacts.\n"
+                . "<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n"
+                . "<IfModule !mod_authz_core.c>\nOrder allow,deny\nDeny from all\n</IfModule>\n"
+            );
+        }
+
+        $index = $dir . '/index.php';
+        if (!file_exists($index)) {
+            @file_put_contents($index, "<?php // Silence is golden\n");
+        }
     }
 
     public function export_all() {
@@ -215,30 +248,49 @@ class Peanut_Hub_Exporter {
     }
 }
 
-// Run the export
-$exporter = new Peanut_Hub_Exporter();
-$export_dir = $exporter->export_all();
+// Authorize the file-scope auto-run. This script dumps the entire database, so
+// it may only self-execute under WP-CLI or for an authenticated administrator
+// (the docblock allows placing it in a theme + hitting it via admin). A plain
+// web request by anyone else is refused before any $wpdb access. It is also
+// skipped entirely under the test harness so the class can be loaded in unit
+// tests without triggering a live export.
+$peanut_export_is_cli   = defined('WP_CLI') && WP_CLI;
+$peanut_export_is_admin = function_exists('current_user_can') && current_user_can('manage_options');
+$peanut_export_testing  = defined('PEANUT_SUITE_TESTING') && PEANUT_SUITE_TESTING;
 
-// If running via WP-CLI, create a zip
-if (defined('WP_CLI') && WP_CLI) {
-    WP_CLI::log("\nCreating zip archive...");
-
-    $zip_file = WP_CONTENT_DIR . '/peanut-hub-export.zip';
-
-    // Remove old zip if exists
-    if (file_exists($zip_file)) {
-        unlink($zip_file);
+if (!$peanut_export_testing) {
+    if (!$peanut_export_is_cli && !$peanut_export_is_admin) {
+        if (!headers_sent()) {
+            http_response_code(403);
+        }
+        die('Forbidden: export requires WP-CLI or an administrator.');
     }
 
-    $zip = new ZipArchive();
-    if ($zip->open($zip_file, ZipArchive::CREATE) === TRUE) {
-        $files = glob($export_dir . '/*.json');
-        foreach ($files as $file) {
-            $zip->addFile($file, basename($file));
+    // Run the export
+    $exporter = new Peanut_Hub_Exporter();
+    $export_dir = $exporter->export_all();
+
+    // If running via WP-CLI, create a zip
+    if (defined('WP_CLI') && WP_CLI) {
+        WP_CLI::log("\nCreating zip archive...");
+
+        $zip_file = WP_CONTENT_DIR . '/peanut-hub-export.zip';
+
+        // Remove old zip if exists
+        if (file_exists($zip_file)) {
+            unlink($zip_file);
         }
-        $zip->close();
-        WP_CLI::success("Created: $zip_file");
-    } else {
-        WP_CLI::error("Failed to create zip file");
+
+        $zip = new ZipArchive();
+        if ($zip->open($zip_file, ZipArchive::CREATE) === TRUE) {
+            $files = glob($export_dir . '/*.json');
+            foreach ($files as $file) {
+                $zip->addFile($file, basename($file));
+            }
+            $zip->close();
+            WP_CLI::success("Created: $zip_file");
+        } else {
+            WP_CLI::error("Failed to create zip file");
+        }
     }
 }
