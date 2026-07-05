@@ -83,9 +83,23 @@ class Monitor_Health {
     public function check_uptime(object $site): array {
         $start_time = microtime(true);
 
+        // SSRF guard: never probe internal/reserved addresses. Admin-gated, but
+        // cheap defense-in-depth against pivoting the manager into a private net.
+        if (!Monitor_Sites::is_safe_remote_url($site->site_url)) {
+            return [
+                'status' => 'down',
+                'response_time' => null,
+                'status_code' => null,
+                'error_message' => __('Blocked: internal or reserved network address.', 'peanut-suite'),
+            ];
+        }
+
         $response = wp_remote_head($site->site_url, [
             'timeout' => 10,
-            'sslverify' => false,
+            // TLS verification stays ON: silently skipping it let a MITM/tampered
+            // response report a compromised child site as "up". Allow opting out
+            // per-site only via an explicit, documented filter.
+            'sslverify' => (bool) apply_filters('peanut_monitor_uptime_sslverify', true, $site),
         ]);
 
         $response_time = round((microtime(true) - $start_time) * 1000);

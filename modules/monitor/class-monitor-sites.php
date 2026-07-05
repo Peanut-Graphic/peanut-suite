@@ -240,6 +240,13 @@ class Monitor_Sites {
      * Verify connection to child site
      */
     public function verify_connection(string $site_url, string $site_key): array|WP_Error {
+        if (!self::is_safe_remote_url($site_url)) {
+            return new WP_Error(
+                'blocked_url',
+                __('Refusing to connect to an internal or reserved network address.', 'peanut-suite')
+            );
+        }
+
         $endpoint = trailingslashit($site_url) . 'wp-json/peanut-connect/v1/verify';
 
         $response = wp_remote_get($endpoint, [
@@ -281,6 +288,13 @@ class Monitor_Sites {
         // We need to retrieve the actual site key - but we only store the hash
         // The site key should be stored encrypted, not just hashed
         // For now, we'll need to refactor this to store the key encrypted
+
+        if (!self::is_safe_remote_url($site->site_url)) {
+            return new WP_Error(
+                'blocked_url',
+                __('Refusing to request an internal or reserved network address.', 'peanut-suite')
+            );
+        }
 
         $url = trailingslashit($site->site_url) . 'wp-json/peanut-connect/v1/' . ltrim($endpoint, '/');
 
@@ -381,6 +395,89 @@ class Monitor_Sites {
      */
     private function notify_disconnect(object $site): void {
         $this->remote_request($site, 'disconnect', 'POST');
+    }
+
+    /**
+     * SSRF guard — is this URL safe to fetch server-side?
+     *
+     * Monitor fetches admin-supplied URLs (site connect/verify, health, uptime).
+     * Even though those surfaces are admin-gated, we refuse to let the manager be
+     * pointed at internal infrastructure — loopback, RFC1918 private ranges,
+     * link-local (incl. the 169.254.169.254 cloud-metadata endpoint) and IPv6
+     * unique-local/loopback. Returns true only when the host resolves EXCLUSIVELY
+     * to public, routable unicast addresses. Fails closed on unresolvable hosts.
+     *
+     * Pure PHP (parse_url + filter_var) so it is unit-testable without WordPress.
+     */
+    public static function is_safe_remote_url(string $url): bool {
+        $host = parse_url($url, PHP_URL_HOST);
+        if (empty($host)) {
+            return false;
+        }
+
+        // Strip brackets from IPv6 literals: [::1] -> ::1
+        $host = trim($host, '[]');
+
+        // Build the set of candidate IPs. IP literals resolve to themselves;
+        // hostnames are resolved to every A/AAAA record so a DNS answer that
+        // includes an internal address can't sneak past.
+        $ips = [];
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
+            $ips[] = $host;
+        } else {
+            $a = gethostbynamel($host);
+            if (is_array($a)) {
+                $ips = array_merge($ips, $a);
+            }
+            if (function_exists('dns_get_record')) {
+                $aaaa = @dns_get_record($host, DNS_AAAA);
+                if (is_array($aaaa)) {
+                    foreach ($aaaa as $rec) {
+                        if (!empty($rec['ipv6'])) {
+                            $ips[] = $rec['ipv6'];
+                        }
+                    }
+                }
+            }
+            // Could not resolve at all -> fail closed.
+            if (empty($ips)) {
+                return false;
+            }
+        }
+
+        foreach ($ips as $ip) {
+            if (self::is_blocked_ip($ip)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * True if an IP is loopback / private / link-local / reserved (i.e. NOT a
+     * public routable unicast address we should ever fetch from the server).
+     *
+     * FILTER_FLAG_NO_PRIV_RANGE rejects 10/8, 172.16/12, 192.168/16 and fc00::/7.
+     * FILTER_FLAG_NO_RES_RANGE rejects 0/8, 127/8 (loopback), 169.254/16
+     * (link-local + 169.254.169.254 metadata) and other reserved ranges. The
+     * explicit IPv6 checks are belt-and-braces for builds that don't flag ::1 /
+     * fe80:: / fc00:: as reserved.
+     */
+    private static function is_blocked_ip(string $ip): bool {
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+            return true;
+        }
+
+        $lower = strtolower($ip);
+        if ($lower === '::1'
+            || str_starts_with($lower, 'fe80:')
+            || str_starts_with($lower, 'fc')
+            || str_starts_with($lower, 'fd')) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
