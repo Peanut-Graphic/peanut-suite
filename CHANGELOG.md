@@ -1,3 +1,13 @@
+## 4.2.2
+
+### Security (microscope remediation)
+
+- **Locked down the Hub export tool.** `cli/export-to-hub.php` now refuses to run over the web (WP-CLI only) and the export directory is protected, closing an unauthenticated full-database dump (contacts, user emails).
+- **Popup lead-capture hardening.** An unauthenticated popup submission can no longer overwrite an existing contact's details; convert/view are rate-limited; captured form data is sanitized; the popup management REST routes are admin-gated (they previously referenced an undefined permission method).
+- **Short-link redirects validate their target** (block `javascript:`/malformed schemes) while keeping legitimate external links working.
+- **Restored + gated the monitor and tracking endpoints** (fixed an undefined permission method and a fatal reference) and added an SSRF guard on monitor fetches.
+- **Trusted-proxy client-IP resolution** so the rate limiter can't be bypassed with spoofed forwarded headers.
+
 ## 4.2.1
 
 ### Fixed
