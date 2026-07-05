@@ -5,6 +5,19 @@
  * Usage: wp eval-file cli/export-to-hub.php [output-path]
  */
 
+// Hard gate: this script performs a full-database PII dump and MUST only ever
+// run under WP-CLI. Without this, a direct web request to
+// /wp-content/plugins/peanut-suite/cli/export-to-hub.php would bootstrap
+// WordPress (via the wp-load require below) and dump the entire database — and
+// register_argc_argv would populate $argv[1] (the output path) straight from the
+// query string. Refuse before requiring wp-load or touching $wpdb.
+if (!(defined('WP_CLI') && WP_CLI)) {
+    if (!headers_sent()) {
+        http_response_code(403);
+    }
+    exit('Forbidden: this exporter runs under WP-CLI only.');
+}
+
 if (!defined('ABSPATH')) {
     // Running via WP-CLI
     require_once(dirname(__FILE__, 5) . '/wp-load.php');
@@ -17,6 +30,16 @@ $output_dir = isset($argv[1]) ? $argv[1] : sys_get_temp_dir() . '/suite-export-'
 if (!is_dir($output_dir)) {
     mkdir($output_dir, 0755, true);
 }
+
+// Defense-in-depth: if the output dir ever lands under the webroot, block direct
+// web access to the JSON PII dumps (mirrors how WP core protects private dirs).
+@file_put_contents(
+    "{$output_dir}/.htaccess",
+    "# Peanut Suite: deny web access to PII export artifacts.\n"
+    . "<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n"
+    . "<IfModule !mod_authz_core.c>\nOrder allow,deny\nDeny from all\n</IfModule>\n"
+);
+@file_put_contents("{$output_dir}/index.php", "<?php // Silence is golden\n");
 
 echo "Exporting Peanut Suite data to: {$output_dir}\n";
 
