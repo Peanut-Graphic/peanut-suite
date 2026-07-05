@@ -162,7 +162,13 @@ class Visitors_Controller {
      * @return \WP_REST_Response
      */
     public function track_event(\WP_REST_Request $request): \WP_REST_Response {
-        if (!Peanut_Security::check_rate_limit('track_event', 120, 60)) {
+        // Rate limit BEFORE any work. `Peanut_Security` lives in the GLOBAL
+        // namespace; this controller is in `PeanutSuite\Visitors`, so the
+        // reference MUST be fully qualified with a leading backslash — PHP does
+        // not fall back to the global namespace for class names, so a bare
+        // `Peanut_Security::` fatals ("Class not found") and takes the public
+        // /track endpoint down entirely (rate limit never runs).
+        if (!\Peanut_Security::check_rate_limit('track_event', 120, 60)) {
             return new \WP_REST_Response(['message' => 'Rate limit exceeded'], 429);
         }
 
@@ -248,7 +254,11 @@ class Visitors_Controller {
      * @return \WP_REST_Response
      */
     public function identify_visitor(\WP_REST_Request $request): \WP_REST_Response {
-        if (!Peanut_Security::check_rate_limit('identify_visitor', 30, 60)) {
+        // See track_event(): global-namespace class must be fully qualified or
+        // the endpoint fatals before the rate limit can run. Keeping the rate
+        // limit live is the guard against unauth callers spamming arbitrary
+        // email->visitor_id associations.
+        if (!\Peanut_Security::check_rate_limit('identify_visitor', 30, 60)) {
             return new \WP_REST_Response(['message' => 'Rate limit exceeded'], 429);
         }
 

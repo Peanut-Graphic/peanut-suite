@@ -224,6 +224,21 @@ class Monitor_Controller extends Peanut_REST_Controller {
     }
 
     /**
+     * Permission callback for every Monitor route.
+     *
+     * All ~20 routes above register this as their `permission_callback`, but the
+     * method did not exist — WordPress treats a non-callable permission callback
+     * as failing, so the entire Monitor REST surface mis-gated / erred. Monitor
+     * is admin-only tooling (it connects, updates and reads managed child sites),
+     * so this requires an authenticated administrator. Mirrors the base
+     * controller's `admin_permission_callback` (logged-in + valid nonce +
+     * `manage_options`). Do NOT relax this to a public callback.
+     */
+    public function check_permission(WP_REST_Request $request): bool|WP_Error {
+        return $this->admin_permission_callback($request);
+    }
+
+    /**
      * Get sites list
      */
     public function get_sites(WP_REST_Request $request): WP_REST_Response {
