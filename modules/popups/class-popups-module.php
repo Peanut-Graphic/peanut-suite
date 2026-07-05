@@ -197,13 +197,24 @@ class Popups_Module {
     public function handle_popup_view(): void {
         check_ajax_referer('peanut_popup_action', 'nonce');
 
+        // Rate limit the unauthenticated endpoint keyed on the TRUSTED transport IP
+        // (REMOTE_ADDR), never a spoofable X-Forwarded-For, so a flood cannot inflate
+        // stats or hammer the DB. Mirrors the visitors /track rate-limit budget.
+        if (!Peanut_Security::check_rate_limit('popup_view', 120, MINUTE_IN_SECONDS, $this->trusted_ip())) {
+            wp_send_json_error(['message' => 'Rate limit exceeded'], 429);
+        }
+
         $popup_id = (int) ($_POST['popup_id'] ?? 0);
         if (!$popup_id) {
             wp_send_json_error('Invalid popup ID');
         }
 
         $this->log_interaction($popup_id, 'view');
-        $this->increment_stat($popup_id, 'views');
+        // Only count a given visitor's view once per dedupe window so refreshes /
+        // replays don't inflate the counter.
+        if ($this->should_count_stat($popup_id, 'view')) {
+            $this->increment_stat($popup_id, 'views');
+        }
 
         wp_send_json_success();
     }
@@ -214,16 +225,27 @@ class Popups_Module {
     public function handle_popup_convert(): void {
         check_ajax_referer('peanut_popup_action', 'nonce');
 
+        // Rate limit the unauthenticated lead-capture endpoint keyed on the TRUSTED
+        // transport IP (REMOTE_ADDR), never a spoofable X-Forwarded-For. Without this
+        // anyone can flood a client's CRM with fabricated contacts/interactions.
+        // Tighter budget than views since each convert can touch the contacts table.
+        if (!Peanut_Security::check_rate_limit('popup_convert', 30, MINUTE_IN_SECONDS, $this->trusted_ip())) {
+            wp_send_json_error(['message' => 'Rate limit exceeded'], 429);
+        }
+
         $popup_id = (int) ($_POST['popup_id'] ?? 0);
         if (!$popup_id) {
             wp_send_json_error('Invalid popup ID');
         }
 
-        $form_data = $_POST['form_data'] ?? [];
+        $form_data = is_array($_POST['form_data'] ?? null) ? $_POST['form_data'] : [];
 
         // Log interaction
         $this->log_interaction($popup_id, 'convert', $form_data);
-        $this->increment_stat($popup_id, 'conversions');
+        // Dedupe the stat bump so a visitor re-submitting doesn't inflate conversions.
+        if ($this->should_count_stat($popup_id, 'convert')) {
+            $this->increment_stat($popup_id, 'conversions');
+        }
 
         // Create contact if Contacts module is active
         if (peanut_is_module_active('contacts') && !empty($form_data['email'])) {
@@ -278,10 +300,63 @@ class Popups_Module {
             'user_id' => get_current_user_id() ?: null,
             'visitor_id' => $this->get_visitor_id(),
             'action' => $action,
-            'data' => !empty($data) ? wp_json_encode($data) : null,
+            // Sanitize the attacker-controlled form payload before persisting so it
+            // can't carry stored XSS / markup into the admin analytics views.
+            'data' => !empty($data) ? wp_json_encode($this->sanitize_form_data($data)) : null,
             'page_url' => esc_url_raw($_SERVER['HTTP_REFERER'] ?? ''),
             'created_at' => current_time('mysql'),
         ]);
+    }
+
+    /**
+     * Recursively sanitize captured popup form data before storage.
+     *
+     * Keys and scalar values are run through sanitize_text_field; nested arrays are
+     * sanitized recursively. This is defence-in-depth for the interaction log — the
+     * capture is unauthenticated, so nothing here is trusted.
+     */
+    private function sanitize_form_data(array $data): array {
+        $clean = [];
+        foreach ($data as $key => $value) {
+            $clean_key = sanitize_text_field((string) $key);
+            if (is_array($value)) {
+                $clean[$clean_key] = $this->sanitize_form_data($value);
+            } else {
+                $clean[$clean_key] = sanitize_text_field((string) $value);
+            }
+        }
+        return $clean;
+    }
+
+    /**
+     * The trusted client IP for abuse controls.
+     *
+     * Uses the transport-level REMOTE_ADDR only — proxy headers like
+     * X-Forwarded-For / CF-Connecting-IP are attacker-controllable and would let a
+     * flooder trivially rotate past an IP-keyed rate limit.
+     */
+    private function trusted_ip(): string {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+        return is_string($ip) ? $ip : '';
+    }
+
+    /**
+     * Lightweight per-visitor stat dedupe.
+     *
+     * Returns true at most once per visitor / popup / action inside a short window
+     * so page refreshes or replayed requests don't inflate view/conversion counters.
+     * Keyed on the visitor id (mirrors the visitors module's per-visitor throttle).
+     */
+    private function should_count_stat(int $popup_id, string $action): bool {
+        $visitor = $this->get_visitor_id();
+        $key = 'peanut_popup_stat_' . md5($action . '|' . $popup_id . '|' . $visitor);
+
+        if (get_transient($key) !== false) {
+            return false;
+        }
+
+        set_transient($key, 1, HOUR_IN_SECONDS);
+        return true;
     }
 
     /**
@@ -341,14 +416,14 @@ class Popups_Module {
         ));
 
         if ($existing) {
-            // Update existing contact
+            // SECURITY: this path is reachable UNAUTHENTICATED and is keyed only on an
+            // attacker-supplied email. Never overwrite an existing contact's identity
+            // fields (name/company) from a public popup submission — otherwise anyone
+            // can clobber a client's CRM records by POSTing a known email. Only make
+            // the non-destructive interaction touch and append the activity record.
             $wpdb->update(
                 $contacts_table,
-                [
-                    'first_name' => sanitize_text_field($form_data['first_name'] ?? ''),
-                    'last_name' => sanitize_text_field($form_data['last_name'] ?? ''),
-                    'updated_at' => current_time('mysql'),
-                ],
+                ['updated_at' => current_time('mysql')],
                 ['id' => $existing]
             );
 
