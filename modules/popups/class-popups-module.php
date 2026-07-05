@@ -383,7 +383,9 @@ class Popups_Module {
         }
 
         $visitor_id = wp_generate_uuid4();
-        setcookie($cookie_name, $visitor_id, time() + (365 * DAY_IN_SECONDS), '/', '', is_ssl(), true);
+        if (! headers_sent()) {
+            setcookie($cookie_name, $visitor_id, time() + (365 * DAY_IN_SECONDS), '/', '', is_ssl(), true);
+        }
 
         return $visitor_id;
     }
