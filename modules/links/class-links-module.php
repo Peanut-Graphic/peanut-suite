@@ -88,6 +88,24 @@ class Links_Module {
             }
         }
 
+        // Validate the redirect target BEFORE tracking or redirecting.
+        //
+        // destination_url is attacker-controllable: any logged-in user (incl. a
+        // Subscriber, via the create endpoint) can set it. Short-links may point
+        // to EXTERNAL domains, so wp_safe_redirect (which forces a same-host
+        // fallback) would break the feature. Instead we scheme-allowlist to a
+        // well-formed http(s) URL with a host, which still permits legitimate
+        // external links while blocking javascript:/data:/vbscript: and malformed
+        // schemes used for open-redirect + credential-phishing.
+        if (!self::is_safe_redirect_target($link->destination_url)) {
+            status_header(400);
+            wp_die(
+                __('This link points to an invalid destination.', 'peanut-suite'),
+                __('Invalid Link', 'peanut-suite'),
+                400
+            );
+        }
+
         // Track click
         $this->track_click($link->id);
 
@@ -97,9 +115,67 @@ class Links_Module {
             $link->id
         ));
 
-        // Redirect
-        wp_redirect($link->destination_url, 301);
+        // Redirect. Target already validated as an http(s) URL with a host; pass
+        // it through esc_url_raw with an explicit protocol allowlist as a final
+        // egress guard (mirrors what wp_safe_redirect does internally).
+        $target = function_exists('esc_url_raw')
+            ? esc_url_raw($link->destination_url, ['http', 'https'])
+            : $link->destination_url;
+        wp_redirect($target, 301);
         exit;
+    }
+
+    /**
+     * Validate that a short-link destination is safe to redirect to.
+     *
+     * Short-links legitimately point to external domains, so we cannot force a
+     * same-host redirect. Instead we require a well-formed absolute http(s) URL
+     * with a host and reject everything else — in particular javascript:, data:,
+     * vbscript:, protocol-relative (`//evil.example`) and otherwise malformed
+     * schemes that enable open-redirect / credential-phishing.
+     *
+     * Pure enough to unit-test without a WordPress runtime: the parse_url +
+     * scheme-allowlist check does the work; the WordPress validators below are
+     * applied as defense-in-depth only when available.
+     *
+     * @param mixed $url Candidate destination URL.
+     */
+    public static function is_safe_redirect_target($url): bool {
+        if (!is_string($url)) {
+            return false;
+        }
+
+        $url = trim($url);
+        if ($url === '') {
+            return false;
+        }
+
+        // Reject embedded control characters / whitespace (obfuscation vectors
+        // such as "java\tscript:alert(1)").
+        if (preg_match('/[\x00-\x20\x7F]/', $url)) {
+            return false;
+        }
+
+        $parts = parse_url($url);
+        if ($parts === false || empty($parts['scheme']) || empty($parts['host'])) {
+            return false;
+        }
+
+        $scheme = strtolower($parts['scheme']);
+        if ($scheme !== 'http' && $scheme !== 'https') {
+            return false;
+        }
+
+        // Defense-in-depth inside WordPress: esc_url_raw with an explicit
+        // protocol allowlist blanks out anything that is not http(s).
+        if (function_exists('esc_url_raw')) {
+            $clean = esc_url_raw($url, ['http', 'https']);
+            if (!is_string($clean) || $clean === '') {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
