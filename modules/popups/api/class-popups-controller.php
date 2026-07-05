@@ -19,6 +19,21 @@ class Popups_Controller extends Peanut_REST_Controller {
     }
 
     /**
+     * Permission callback for the popup-management endpoints.
+     *
+     * These are admin CRUD/bulk/stat routes for managing a site's popups, so they
+     * require an authenticated administrator (manage_options) with a valid REST
+     * nonce. Previously the routes referenced a `check_permission` method that did
+     * not exist on this class or its base, so every popups REST route either
+     * fataled or was mis-gated. Mirror the base controller's admin gate.
+     *
+     * @see Peanut_REST_Controller::admin_permission_callback()
+     */
+    public function check_permission(WP_REST_Request $request): bool|WP_Error {
+        return $this->admin_permission_callback($request);
+    }
+
+    /**
      * Register routes
      */
     public function register_routes(): void {

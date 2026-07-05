@@ -88,7 +88,6 @@ class Popups_Database {
             data longtext,
             page_url varchar(2048) DEFAULT '',
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
-
             PRIMARY KEY (id),
             KEY popup_id (popup_id),
             KEY user_id (user_id),
