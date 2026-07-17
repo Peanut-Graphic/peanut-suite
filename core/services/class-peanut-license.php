@@ -90,6 +90,76 @@ class Peanut_License {
     /**
      * Remote license validation and activation
      */
+    /**
+     * Verify a signed entitlement from the license server.
+     * @return array  authenticated entitlement (trust this) when a valid signature is present
+     * @return null   no signature present (rollout window) — unless require-signature is on
+     * @return false  signature present but invalid/tampered/stale/mismatched — reject
+     */
+    private function verify_entitlement(array $body, string $key) {
+        $sig     = $body['signature'] ?? null;
+        $require = (bool) apply_filters('peanut_suite_require_signed_license', false);
+
+        if (!is_array($sig) || empty($sig['signature'])) {
+            return $require ? false : null;
+        }
+        $pubkey = $this->pinned_public_key((string) ($sig['kid'] ?? ''));
+        if ($pubkey === '') {
+            return $require ? false : null;
+        }
+
+        // Canonical form MUST match the server (ksort + unescaped slashes/unicode).
+        $payload = $sig; unset($payload['signature']);
+        ksort($payload);
+        $canonical = wp_json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        $raw_sig = base64_decode($sig['signature'], true);
+        $raw_pk  = base64_decode($pubkey, true);
+        if ($raw_sig === false || $raw_pk === false
+            || strlen($raw_sig) !== SODIUM_CRYPTO_SIGN_BYTES
+            || !sodium_crypto_sign_verify_detached($raw_sig, $canonical, $raw_pk)) {
+            return false;
+        }
+        // Binding + freshness — a signature for another key/site or a stale one is rejected.
+        if (!hash_equals(hash('sha256', $key), (string) ($sig['key_hash'] ?? ''))) {
+            return false;
+        }
+        if (($sig['site_url'] ?? null) !== home_url()) {
+            return false;
+        }
+        if (time() > (int) ($sig['issued_at'] ?? 0) + (int) ($sig['ttl'] ?? 0)) {
+            return false;
+        }
+        return $sig;
+    }
+
+    /**
+     * Trust-on-first-use pin of the server signing key, keyed by kid.
+     * (Stronger than embedding nothing; a build-time embedded key would remove
+     * the first-fetch MITM window — tracked as a follow-up.)
+     */
+    private function pinned_public_key(string $kid): string {
+        $stored = get_option('peanut_suite_ls_pubkey');
+        if (is_array($stored) && ($stored['kid'] ?? '') === $kid && !empty($stored['public_key'])) {
+            return $stored['public_key'];
+        }
+        $res = wp_remote_get(self::LICENSE_API . '/public-key', ['timeout' => 15]);
+        if (is_wp_error($res)) {
+            return '';
+        }
+        $pk = json_decode(wp_remote_retrieve_body($res), true);
+        if (!is_array($pk) || ($pk['alg'] ?? '') !== 'ed25519' || empty($pk['public_key'])) {
+            return '';
+        }
+        if (!is_array($stored) || empty($stored['kid']) || ($pk['kid'] ?? '') === $kid) {
+            update_option('peanut_suite_ls_pubkey', [
+                'kid'        => $pk['kid'] ?? '',
+                'public_key' => $pk['public_key'],
+            ], false);
+        }
+        return (($pk['kid'] ?? '') === $kid) ? $pk['public_key'] : '';
+    }
+
     private function remote_validate(string $key): array {
         $response = wp_remote_post(self::LICENSE_API . '/license/validate', [
             'timeout' => 15,
@@ -120,6 +190,28 @@ class Peanut_License {
                 'message' => $body['message'] ?? __('Invalid license key', 'peanut-suite'),
                 'error_code' => $body['error'] ?? 'unknown',
             ];
+        }
+
+        // Verify the server's signed entitlement (audit 2026-07, C1b). A valid
+        // signature is the source of truth for tier/status and defeats a forged or
+        // replayed grant. During rollout, responses with NO signature fall through
+        // to legacy handling unless the require-signature filter is enabled.
+        $verified = $this->verify_entitlement($body, $key);
+        if ($verified === false) {
+            return [
+                'status' => 'invalid',
+                'tier' => 'free',
+                'message' => __('License signature verification failed', 'peanut-suite'),
+                'error_code' => 'signature_invalid',
+            ];
+        }
+        if (is_array($verified)) {
+            // Authenticated values override the unsigned body.
+            $body['license']['tier']   = $verified['tier']   ?? ($body['license']['tier']   ?? 'free');
+            $body['license']['status'] = $verified['status'] ?? ($body['license']['status'] ?? 'invalid');
+            if (array_key_exists('expires_at', $verified)) {
+                $body['license']['expires_at'] = $verified['expires_at'];
+            }
         }
 
         // Extract license data from response
