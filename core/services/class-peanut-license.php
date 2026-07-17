@@ -62,8 +62,10 @@ class Peanut_License {
             return $this->free_license();
         }
 
-        // Check for dev licenses
-        if ($this->is_dev_license($key)) {
+        // Dev/demo/test license shortcuts are ONLY honored outside production.
+        // In prod they must NOT unlock tiers (prevents the PEANUT-DEV-AGENCY
+        // prefix from granting paid access on live sites). Audit 2026-07.
+        if ($this->is_dev_license($key) && $this->dev_license_allowed()) {
             return $this->dev_license($key);
         }
 
@@ -164,6 +166,18 @@ class Peanut_License {
     /**
      * Check if dev license
      */
+    /**
+     * Whether dev/demo/test license shortcuts may be honored in this environment.
+     * Production returns false unless PEANUT_ALLOW_DEV_LICENSE is explicitly defined true.
+     */
+    private function dev_license_allowed(): bool {
+        if (defined('PEANUT_ALLOW_DEV_LICENSE')) {
+            return (bool) PEANUT_ALLOW_DEV_LICENSE;
+        }
+        $env = function_exists('wp_get_environment_type') ? wp_get_environment_type() : 'production';
+        return in_array($env, ['local', 'development'], true);
+    }
+
     private function is_dev_license(string $key): bool {
         $dev_prefixes = ['PEANUT-DEV-', 'PEANUT-DEMO-', 'PEANUT-TEST-'];
         foreach ($dev_prefixes as $prefix) {
