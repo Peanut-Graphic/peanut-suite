@@ -3,7 +3,7 @@
  * Plugin Name: Peanut Suite
  * Plugin URI: https://peanutgraphic.com/peanut-suite
  * Description: Complete marketing toolkit - UTM campaigns, link management, lead tracking, and analytics in one unified dashboard.
- * Version: 4.2.6
+ * Version: 4.2.7
  * Author: Peanut Graphic
  * Author URI: https://peanutgraphic.com
  * License: GPL-2.0+
@@ -26,8 +26,8 @@ if (defined('PEANUT_VERSION')) {
 /**
  * Plugin constants
  */
-define('PEANUT_VERSION', '4.2.6');
-define('PEANUT_SUITE_VERSION', '4.2.6'); // Alias for updater
+define('PEANUT_VERSION', '4.2.7');
+define('PEANUT_SUITE_VERSION', '4.2.7'); // Alias for updater
 define('PEANUT_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('PEANUT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('PEANUT_PLUGIN_BASENAME', plugin_basename(__FILE__));
