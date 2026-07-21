@@ -237,3 +237,72 @@ if (!class_exists('WP_Error')) {
 global $mock_options, $mock_transients;
 $mock_options = [];
 $mock_transients = [];
+
+// ---------------------------------------------------------------------------
+// HTTP + URL mocks, so licence validation can be exercised for real rather than
+// only scanned as source. $GLOBALS['mock_http_response'] is what wp_remote_*
+// returns next; set it to a WP_Error to simulate an unreachable server.
+// ---------------------------------------------------------------------------
+if (!function_exists('home_url')) {
+    function home_url($path = '') {
+        return ($GLOBALS['mock_home_url'] ?? 'https://example.com') . $path;
+    }
+}
+
+if (!function_exists('get_bloginfo')) {
+    function get_bloginfo($show = '') {
+        return $GLOBALS['mock_bloginfo'][$show] ?? 'Test Site';
+    }
+}
+
+if (!function_exists('wp_parse_url')) {
+    function wp_parse_url($url, $component = -1) {
+        return $component === -1 ? parse_url($url) : parse_url($url, $component);
+    }
+}
+
+if (!function_exists('wp_remote_post')) {
+    function wp_remote_post($url, $args = []) {
+        $GLOBALS['mock_http_calls'][] = ['method' => 'POST', 'url' => $url, 'args' => $args];
+        return $GLOBALS['mock_http_response'] ?? ['body' => '{}', 'response' => ['code' => 200]];
+    }
+}
+
+if (!function_exists('wp_remote_get')) {
+    function wp_remote_get($url, $args = []) {
+        $GLOBALS['mock_http_calls'][] = ['method' => 'GET', 'url' => $url, 'args' => $args];
+        return $GLOBALS['mock_http_response'] ?? ['body' => '{}', 'response' => ['code' => 200]];
+    }
+}
+
+if (!function_exists('wp_remote_retrieve_body')) {
+    function wp_remote_retrieve_body($response) {
+        return is_array($response) ? ($response['body'] ?? '') : '';
+    }
+}
+
+if (!function_exists('wp_remote_retrieve_response_code')) {
+    function wp_remote_retrieve_response_code($response) {
+        return is_array($response) ? (int) ($response['response']['code'] ?? 0) : 0;
+    }
+}
+
+if (!function_exists('wp_get_environment_type')) {
+    function wp_get_environment_type() {
+        return $GLOBALS['mock_environment_type'] ?? 'production';
+    }
+}
+
+if (!function_exists('apply_filters')) {
+    function apply_filters($hook, $value, ...$args) {
+        return $value;
+    }
+}
+
+if (!function_exists('do_action')) {
+    function do_action($hook, ...$args) {}
+}
+
+if (!defined('MINUTE_IN_SECONDS')) { define('MINUTE_IN_SECONDS', 60); }
+if (!defined('HOUR_IN_SECONDS'))   { define('HOUR_IN_SECONDS', 3600); }
+if (!defined('DAY_IN_SECONDS'))    { define('DAY_IN_SECONDS', 86400); }
