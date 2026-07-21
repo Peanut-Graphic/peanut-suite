@@ -22,6 +22,17 @@ class Peanut_License {
     private const CACHE_DURATION = 12 * HOUR_IN_SECONDS;
 
     /**
+     * How long a FAILED validation is cached before we try again.
+     *
+     * Incident 2026-07-21: only successful results were cached, so a failure was
+     * retried on the very next trigger. When the licence server is unwell that
+     * turns every client into a hammer and the server can never recover — the
+     * outage sustains itself. Short enough that a genuine fix propagates within
+     * minutes; long enough that it is a backoff and not a retry loop.
+     */
+    private const FAILURE_CACHE_DURATION = 15 * MINUTE_IN_SECONDS;
+
+    /**
      * Tier features
      */
     private const TIER_FEATURES = [
@@ -80,9 +91,14 @@ class Peanut_License {
         // Validate remotely
         $result = $this->remote_validate($key);
 
-        if ($result['status'] === 'active') {
-            set_transient('peanut_license_data', $result, self::CACHE_DURATION);
-        }
+        // Cache BOTH outcomes. A successful grant is held for the full duration;
+        // anything else is held under a short backoff so a bad or unreachable
+        // licence server is not re-queried on every single trigger.
+        set_transient(
+            'peanut_license_data',
+            $result,
+            $result['status'] === 'active' ? self::CACHE_DURATION : self::FAILURE_CACHE_DURATION
+        );
 
         return $result;
     }
@@ -160,7 +176,40 @@ class Peanut_License {
         return (($pk['kid'] ?? '') === $kid) ? $pk['public_key'] : '';
     }
 
+    /**
+     * True when THIS site is the licence server.
+     *
+     * peanutgraphic.com dogfoods every Peanut plugin, so its LICENSE_API points
+     * at itself. An outbound HTTP call then occupies one PHP worker while it
+     * waits on another worker in the same pool to answer — under any load that
+     * is a deadlock, and it is what took the licence server down on 2026-07-21.
+     *
+     * Compare hosts rather than URLs: scheme, port, trailing slash and a www
+     * prefix all vary harmlessly, and a string comparison would miss the match.
+     */
+    private function is_self_hosted_licence_server(): bool {
+        $api_host  = wp_parse_url(self::LICENSE_API, PHP_URL_HOST);
+        $site_host = wp_parse_url(home_url(), PHP_URL_HOST);
+
+        if (!is_string($api_host) || !is_string($site_host) || $api_host === '' || $site_host === '') {
+            return false;
+        }
+
+        $normalise = static fn(string $h): string => preg_replace('/^www\./i', '', strtolower($h));
+
+        return $normalise($api_host) === $normalise($site_host);
+    }
+
     private function remote_validate(string $key): array {
+        // Never call ourselves over HTTP — see is_self_hosted_licence_server().
+        // The licence server's own entitlement is not decided by a round trip to
+        // itself, so fall back to the offline path exactly as an unreachable
+        // server would.
+        if ($this->is_self_hosted_licence_server()) {
+            $cached = get_transient('peanut_license_data');
+            return $cached !== false ? $cached : $this->free_license();
+        }
+
         $response = wp_remote_post(self::LICENSE_API . '/license/validate', [
             'timeout' => 15,
             'body' => [
