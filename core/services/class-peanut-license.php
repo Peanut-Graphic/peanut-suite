@@ -33,6 +33,32 @@ class Peanut_License {
     private const FAILURE_CACHE_DURATION = 15 * MINUTE_IN_SECONDS;
 
     /**
+     * How long we stop calling out after the server proved unreachable.
+     *
+     * Applies even to a forced refresh — 4.2.5 backed off only the cached path,
+     * so anything passing $force_refresh still hammered on every call.
+     */
+    private const BACKOFF_DURATION = 5 * MINUTE_IN_SECONDS;
+
+    /**
+     * How long a previously-granted entitlement keeps working while WE are the
+     * ones who are broken.
+     *
+     * 4.2.5 cached "could not reach the server" exactly like "server says you
+     * are not licensed", so a paying site whose 12h cache lapsed during a blip
+     * dropped to free tier for 15 minutes. Our downtime must never downgrade a
+     * customer. Bounded so a cancelled licence cannot be kept alive forever by
+     * simply being unreachable.
+     */
+    private const GRACE_PERIOD = 14 * DAY_IN_SECONDS;
+
+    /** Persisted last-known-good grant (an option, so it outlives transients). */
+    private const LAST_GOOD_OPTION = 'peanut_license_last_good';
+
+    /** Set while the licence server is known to be unreachable. */
+    private const BACKOFF_TRANSIENT = 'peanut_license_backoff';
+
+    /**
      * Tier features
      */
     private const TIER_FEATURES = [
@@ -89,16 +115,47 @@ class Peanut_License {
         }
 
         // Validate remotely
+        // Do not call out at all while the server is known to be down. This gate
+        // deliberately sits AFTER the cache check but BEFORE the request, and
+        // applies to forced refreshes too — that is where the hammering lived.
+        if (get_transient(self::BACKOFF_TRANSIENT) !== false) {
+            return $this->grace_or_free();
+        }
+
         $result = $this->remote_validate($key);
 
-        // Cache BOTH outcomes. A successful grant is held for the full duration;
-        // anything else is held under a short backoff so a bad or unreachable
-        // licence server is not re-queried on every single trigger.
-        set_transient(
-            'peanut_license_data',
-            $result,
-            $result['status'] === 'active' ? self::CACHE_DURATION : self::FAILURE_CACHE_DURATION
-        );
+        // A definitive local answer (we are the licence server). Nothing to
+        // cache or invalidate — just report it.
+        if (!empty($result['_local'])) {
+            unset($result['_local']);
+            return $result;
+        }
+
+        if ($result['status'] === 'active') {
+            set_transient('peanut_license_data', $result, self::CACHE_DURATION);
+            update_option(
+                self::LAST_GOOD_OPTION,
+                ['entitlement' => $result, 'granted_at' => time()],
+                false
+            );
+            delete_transient(self::BACKOFF_TRANSIENT);
+            return $result;
+        }
+
+        // WE could not reach the server. That is our failure, not the
+        // customer's — hold their last known grant and stop calling for a bit.
+        if (!empty($result['_unreachable'])) {
+            set_transient(self::BACKOFF_TRANSIENT, time(), self::BACKOFF_DURATION);
+            $grace = $this->grace_or_free();
+            set_transient('peanut_license_data', $grace, self::BACKOFF_DURATION);
+            return $grace;
+        }
+
+        // The server was reachable and said no. That is real information:
+        // honour it, drop the stored grant so grace cannot resurrect it, and
+        // cache briefly so we are not re-asking on every request.
+        delete_option(self::LAST_GOOD_OPTION);
+        set_transient('peanut_license_data', $result, self::FAILURE_CACHE_DURATION);
 
         return $result;
     }
@@ -206,8 +263,7 @@ class Peanut_License {
         // itself, so fall back to the offline path exactly as an unreachable
         // server would.
         if ($this->is_self_hosted_licence_server()) {
-            $cached = get_transient('peanut_license_data');
-            return $cached !== false ? $cached : $this->free_license();
+            return $this->grace_or_free() + ['_local' => true];
         }
 
         $response = wp_remote_post(self::LICENSE_API . '/license/validate', [
@@ -221,12 +277,10 @@ class Peanut_License {
         ]);
 
         if (is_wp_error($response)) {
-            // Fall back to cached/offline mode
-            $cached = get_transient('peanut_license_data');
-            if ($cached !== false) {
-                return $cached;
-            }
-            return $this->free_license();
+            // Transport failure — flagged so the caller can tell "we are broken"
+            // apart from "the server says no". Conflating the two is what
+            // downgraded paying sites in 4.2.5.
+            return ['status' => 'unreachable', 'tier' => 'free', '_unreachable' => true];
         }
 
         $body = json_decode(wp_remote_retrieve_body($response), true);
@@ -351,6 +405,27 @@ class Peanut_License {
     /**
      * Free license data
      */
+    /**
+     * The last successful grant, if it is still inside the grace window.
+     *
+     * Grace exists so an outage on our side never costs a paying customer their
+     * tier. It is bounded by GRACE_PERIOD so it cannot become a permanent free
+     * upgrade for a licence that has actually lapsed.
+     */
+    private function grace_or_free(): array {
+        $stored = get_option(self::LAST_GOOD_OPTION);
+
+        if (!is_array($stored) || empty($stored['entitlement']) || empty($stored['granted_at'])) {
+            return $this->free_license();
+        }
+
+        if ((time() - (int) $stored['granted_at']) > self::GRACE_PERIOD) {
+            return $this->free_license();
+        }
+
+        return $stored['entitlement'];
+    }
+
     private function free_license(): array {
         return [
             'status' => 'free',
