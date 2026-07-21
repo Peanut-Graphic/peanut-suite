@@ -295,6 +295,10 @@ if (!function_exists('wp_get_environment_type')) {
 
 if (!function_exists('apply_filters')) {
     function apply_filters($hook, $value, ...$args) {
+        // Per-test override hook, so filterable behaviour is testable.
+        if (isset($GLOBALS['mock_filter_overrides'][$hook])) {
+            return $GLOBALS['mock_filter_overrides'][$hook];
+        }
         return $value;
     }
 }
@@ -306,3 +310,21 @@ if (!function_exists('do_action')) {
 if (!defined('MINUTE_IN_SECONDS')) { define('MINUTE_IN_SECONDS', 60); }
 if (!defined('HOUR_IN_SECONDS'))   { define('HOUR_IN_SECONDS', 3600); }
 if (!defined('DAY_IN_SECONDS'))    { define('DAY_IN_SECONDS', 86400); }
+
+// Site options (multisite-aware in core; single store is fine for tests).
+if (!function_exists('get_site_option')) {
+    function get_site_option($option, $default = false) {
+        global $mock_options;
+        return $mock_options[$option] ?? $default;
+    }
+}
+if (!function_exists('update_site_option')) {
+    function update_site_option($option, $value) {
+        global $mock_options;
+        $mock_options[$option] = $value;
+        return true;
+    }
+}
+// apply_filters with per-test overrides so opt-out filters are testable.
+if (!function_exists('add_action')) { function add_action(...$a) {} }
+if (!function_exists('add_filter')) { function add_filter(...$a) {} }

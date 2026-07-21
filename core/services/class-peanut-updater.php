@@ -62,6 +62,13 @@ class Peanut_Updater {
         // Check for updates
         add_filter('pre_set_site_transient_update_plugins', [$this, 'check_for_update']);
 
+        // Enrol in WordPress auto-updates once, on admin load. Without this a
+        // release only ever becomes a notice someone has to click, which is how
+        // sites drifted to 4.1.5 and 2.6.4 while the server advertised current.
+        add_action('admin_init', function (): void {
+            self::ensure_auto_update_enrolment($this->plugin_file);
+        });
+
         // Plugin information popup
         add_filter('plugins_api', [$this, 'plugin_info'], 20, 3);
 
@@ -170,6 +177,45 @@ class Peanut_Updater {
             $bytes,
             base64_decode($pubkey_b64 ?? self::PEANUT_SIGNING_PUBKEY)
         );
+    }
+
+    /**
+     * Enrol this plugin in WordPress auto-updates, once.
+     *
+     * Fleet drift, 2026-07-21: sites sat on 4.1.5 and 2.6.4 for months while
+     * the licence server advertised the current release correctly. The updater
+     * was working the whole time — the releases simply landed as a notice in
+     * wp-admin that nobody clicked. On sites we maintain but rarely log into,
+     * that is permanent drift, and it silently defeats security releases.
+     *
+     * Deliberately a ONE-TIME default rather than an enforced policy: if
+     * someone later turns auto-updates off in wp-admin, the durable marker
+     * stops us putting it back. Their decision wins.
+     *
+     * Filterable via `peanut_suite_auto_enrol_updates` for sites where we must
+     * not touch update behaviour at all.
+     *
+     * @param string $plugin_file Plugin basename, e.g. "peanut-suite/peanut-suite.php".
+     */
+    public static function ensure_auto_update_enrolment(string $plugin_file): void {
+        // Already ran once — never second-guess the current setting.
+        if (get_site_option('peanut_auto_update_enrolled', false)) {
+            return;
+        }
+
+        if (!apply_filters('peanut_suite_auto_enrol_updates', true, $plugin_file)) {
+            return;
+        }
+
+        $auto_updates = (array) get_site_option('auto_update_plugins', []);
+
+        if (!in_array($plugin_file, $auto_updates, true)) {
+            $auto_updates[] = $plugin_file;
+            update_site_option('auto_update_plugins', array_values($auto_updates));
+        }
+
+        // Marker last, so a failure above is retried rather than silently lost.
+        update_site_option('peanut_auto_update_enrolled', true);
     }
 
     /**
