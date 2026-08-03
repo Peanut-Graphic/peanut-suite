@@ -63,3 +63,7 @@ vendor/
 .phpunit.result.cache
 .phpunit.cache/
 .phpunit.regression.cache/
+
+# --- added by gitignore-sync on 2026-08-03 ---
+.cursor/*
+!.cursor/rules/
