@@ -199,7 +199,9 @@ class Test_REST_API extends Peanut_Suite_TestCase {
 
         $test_cases = [
             ['input' => 25, 'expected' => 25],
-            ['input' => -1, 'expected' => $default_per_page],
+            // WordPress absint(-1) is 1, not 0. Negative input therefore
+            // clamps to the minimum rather than falling back to the default.
+            ['input' => -1, 'expected' => 1],
             ['input' => 0, 'expected' => $default_per_page],
             ['input' => 200, 'expected' => $max_per_page],
             ['input' => 'abc', 'expected' => $default_per_page],

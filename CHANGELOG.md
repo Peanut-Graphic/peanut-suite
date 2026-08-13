@@ -1,3 +1,9 @@
+## Unreleased
+
+### Testing
+
+- Corrected the standalone WordPress mocks and assertions to match real `absint`, `esc_attr`, and `sanitize_email` semantics, while adding an adversarial check that the plugin security service still rejects invalid email syntax.
+
 ## 4.2.2
 
 ### Security (microscope remediation)
