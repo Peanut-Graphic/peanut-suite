@@ -1,0 +1,153 @@
+schema_version: 1
+project:
+  id: peanut-suite
+  name: Peanut Suite
+  classification: distributed-plugin
+  repository: https://github.com/Peanut-Graphic/peanut-suite.git
+  lifecycle: active
+ownership:
+  platform: Peanut Graphic
+  deployment: Peanut Graphic
+  rollback: Peanut Graphic
+environments:
+  - name: distribution
+    kind: production
+    provider: GitHub Releases and Peanut License Server
+    url: "https://github.com/Peanut-Graphic/peanut-suite/releases"
+  - name: firebase-backend
+    kind: production
+    provider: Firebase project peanut-suite
+runtimes:
+  - name: php
+    baseline: WordPress compatibility matrix
+    declarations:
+      - { scope: dependency, source: peanut-suite.php, value: "Requires PHP 8.0" }
+      - { scope: dependency, source: composer.json, value: "require >=8.1; platform 8.3" }
+      - { scope: ci, source: .github/workflows/tests.yml, value: "8.3" }
+      - { scope: ci, source: .github/workflows/wp-contract.yml, value: "8.3" }
+    production_observation: { status: not-applicable }
+  - name: node
+    baseline: "22"
+    declarations:
+      - { scope: ci, source: .github/workflows/tests.yml, value: "20" }
+      - { scope: ci, source: .github/workflows/accessibility.yml, value: "20" }
+      - { scope: hosting, source: functions/package.json, value: "engines.node 20" }
+    production_observation: { status: unverified }
+  - name: wordpress
+    baseline: WordPress 6.0+
+    declarations:
+      - { scope: dependency, source: peanut-suite.php, value: "Requires at least 6.0" }
+      - { scope: test, source: .github/workflows/wp-contract.yml, value: "WordPress latest" }
+    production_observation: { status: not-applicable }
+databases:
+  - name: host-database
+    role: transactional
+    baseline: Host MySQL or MariaDB compatibility
+    declarations:
+      - { scope: ci, source: .github/workflows/wp-contract.yml, value: "mysql:8" }
+    production_equivalent_test: "yes"
+    production_observation: { status: not-applicable }
+  - name: firestore
+    role: transactional
+    baseline: Firebase Firestore managed service
+    declarations:
+      - { scope: hosting, source: firebase.json, value: "Firestore rules and indexes" }
+      - { scope: documentation, source: README.md, value: "production-mode Firestore project peanut-suite" }
+    production_equivalent_test: unknown
+    production_observation: { status: unverified }
+services:
+  - kind: other
+    baseline: Firebase Cloud Functions
+    declarations:
+      - { scope: hosting, source: firebase.json, value: "functions codebase peanut-api" }
+      - { scope: documentation, source: README.md, value: "manual Firebase CLI deployment" }
+    production_observation: { status: unverified }
+  - kind: object-storage
+    baseline: Firebase Storage
+    declarations:
+      - { scope: hosting, source: firebase.json, value: "storage.rules" }
+    production_observation: { status: unverified }
+deployment:
+  mode: manual
+  source_of_truth: README.md and firebase.json Firebase CLI commands
+  ci_gate: "no"
+  concurrency_lock: unknown
+  exact_revision: "no"
+  backup_or_snapshot: unknown
+  migration_safety: unknown
+  health_check: { status: missing }
+  rollback: unknown
+distribution:
+  mode: signed-github-release
+  source_of_truth: Peanut Meta scripts/publish-plugin.sh
+  versioned_artifact: "yes"
+  signed: "yes"
+  canary: "yes"
+  rollback: unknown
+exceptions:
+  - id: PAR-207
+    concern: PHP and Node runtime declarations disagree
+    reason: The plugin header permits PHP 8.0 while Composer requires PHP 8.1, and both CI and Firebase Functions remain on Node 20 instead of the fleet Node 22 baseline.
+    risk: A host can satisfy the advertised plugin requirement but fail dependency constraints, while JavaScript behavior can differ from the fleet-supported runtime.
+    owner: Peanut Graphic
+    verification: Reconcile the WordPress header, Composer constraint, platform pin, CI matrices, and Node declarations, then rerun plugin and Firebase builds on the selected lanes.
+    review_date: "2026-11-14"
+    status: proposed
+  - id: PAR-306
+    concern: Host-controlled MySQL or MariaDB engine
+    reason: A distributed WordPress plugin cannot dictate the customer hosting database.
+    risk: Engine-specific schema behavior can escape a single-engine CI lane.
+    owner: Peanut Graphic
+    verification: Run the reusable WordPress integration contract against supported MySQL and MariaDB lanes.
+    review_date: "2026-11-13"
+    status: accepted
+  - id: PAR-310
+    concern: Firebase backend ownership and end-state are not independently verified
+    reason: The repository contains a production-shaped Firebase backend and manual deploy instructions alongside the distributed WordPress plugin, but no CI deploy workflow or live project observation.
+    risk: Backend changes can bypass CI gating, exact-revision assertions, backup checks, health verification, and a documented rollback path.
+    owner: Peanut Graphic
+    verification: Confirm the live Firebase project, consumers, deployment owner, deployed revision, data safeguards, health surface, and intended long-term ownership.
+    review_date: "2026-11-14"
+    status: proposed
+  - id: PAR-404
+    concern: Repository-local packaging path duplicates the central publisher
+    reason: package.json, scripts/package.sh, and scripts/package.js can build a plugin ZIP independently of the canonical signed publisher.
+    risk: A locally packaged artifact can omit signing, canary, license-server advertisement, or canonical ZIP-layout checks.
+    owner: Peanut Graphic
+    verification: Convert the local package command into a dry-run wrapper around the central publisher or retire it, then verify the canonical artifact layout.
+    review_date: "2026-11-14"
+    status: proposed
+  - id: PAR-405
+    concern: Release metadata drift and rollback verification are unresolved
+    reason: The plugin reports 4.2.7 while package.json reports 4.2.1 and frontend/package.json reports 4.1.6; the central publisher verifies signing and canary installation but does not encode a rollback assertion.
+    risk: Local packaging can label the wrong version, and an update incident lacks a source-verifiable rollback control.
+    owner: Peanut Graphic
+    verification: Standardize all version declarations and add a tested rollback check to the canonical release contract.
+    review_date: "2026-11-14"
+    status: proposed
+verification:
+  status: source-audited
+  audited_commit: 17c3499ff0e105b207eb97e2cbb452959c0bae76
+  last_reviewed: "2026-08-14"
+  sources:
+    - peanut-suite.php
+    - composer.json
+    - package.json
+    - frontend/package.json
+    - functions/package.json
+    - .firebaserc
+    - firebase.json
+    - README.md
+    - scripts/package.sh
+    - scripts/package.js
+    - .github/workflows/tests.yml
+    - .github/workflows/accessibility.yml
+    - .github/workflows/wp-contract.yml
+    - Peanut-Graphic/Peanut-meta:scripts/publish-plugin.sh
+    - Peanut-Graphic/Peanut-meta:scripts/verify-plugin-release.sh
+  outstanding:
+    - Verify the live Firebase project, Node runtime, Firestore, Storage, deployment owner, revision, and rollback controls in PAR-310.
+    - Align PHP and Node declarations with fleet baselines in PAR-207 and PAR-205.
+    - Retire or wrap the repository-local packager in PAR-404.
+    - Standardize release metadata and add rollback verification in PAR-405.
+    - Add a MariaDB WordPress integration lane in PAR-306.
