@@ -52,11 +52,38 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist
 
+      - name: Verify declared PHP support
+        run: php scripts/verify-php-runtime.php
+
       # Net 2 — dependency audit (non-blocking to start; ratchet to blocking later).
       - name: Dependency audit (composer)
         run: composer audit || true
 
       # Net 6 — property tests over PURE functions (no WordPress).
+      - name: Property tests
+        run: vendor/bin/phpunit --testsuite=Property
+
+      - name: Regression guards
+        run: vendor/bin/phpunit --testsuite=Regression
+
+  php-minimum-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup declared minimum PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.1"
+          coverage: none
+          tools: composer
+
+      - name: Install dependencies from the lockfile
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Verify declared PHP support
+        run: php scripts/verify-php-runtime.php --expect-runtime=8.1
+
       - name: Property tests
         run: vendor/bin/phpunit --testsuite=Property
 
