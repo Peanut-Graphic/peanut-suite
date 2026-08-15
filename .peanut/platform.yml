@@ -26,9 +26,10 @@ runtimes:
   - name: php
     baseline: WordPress compatibility matrix
     declarations:
-      - { scope: dependency, source: peanut-suite.php, value: "Requires PHP 8.0" }
-      - { scope: dependency, source: composer.json, value: "require >=8.1; platform 8.3" }
-      - { scope: ci, source: .github/workflows/tests.yml, value: "8.3" }
+      - { scope: dependency, source: peanut-suite.php, value: "Requires PHP 8.1" }
+      - { scope: dependency, source: composer.json, value: "require >=8.1; platform 8.1.0" }
+      - { scope: documentation, source: README.md, value: "WordPress 6.0+; PHP 8.1+" }
+      - { scope: ci, source: .github/workflows/tests.yml, value: "required PHP 8.1 minimum property/regression lane and PHP 8.3 current lane" }
       - { scope: ci, source: .github/workflows/wp-contract.yml, value: "8.3" }
     production_observation: { status: verified, value: "PHP 8.5.9 on the central first-party installation; distributed client hosts unverified", observed_at: "2026-08-15T01:09:00-04:00", evidence: "read-only host interpreter and active-plugin inventory" }
   - name: node
@@ -101,11 +102,11 @@ distribution:
   rollback: unknown
 exceptions:
   - id: PAR-207
-    concern: PHP and Node runtime declarations disagree
-    reason: The plugin header permits PHP 8.0 while Composer requires PHP 8.1, the central first-party installation runs PHP 8.5.9, and both CI and Firebase Functions remain on Node 20 instead of the fleet Node 22 baseline.
-    risk: A host can satisfy the advertised plugin requirement but fail dependency constraints, while JavaScript behavior can differ from the fleet-supported runtime.
+    concern: The PHP minimum is reconciled, but Node runtime declarations remain below the fleet baseline
+    reason: The plugin header, README, Composer requirement and platform, lockfile, and required minimum CI now agree on PHP 8.1, alongside the current PHP 8.3 and real WordPress lanes. The central first-party installation runs PHP 8.5.9, while JavaScript CI and Firebase Functions remain on Node 20 instead of the fleet Node 22 baseline.
+    risk: The distributed PHP minimum is protected from regression, but JavaScript behavior can still differ from the fleet-supported runtime.
     owner: Peanut Graphic
-    verification: Reconcile the WordPress header, Composer constraint, platform pin, CI matrices, and Node declarations, then rerun plugin and Firebase builds on the selected lanes.
+    verification: Keep the PHP 8.1 declaration contract and required minimum lane green, then separately verify Firebase before any Node runtime change.
     review_date: "2026-11-14"
     status: proposed
   - id: PAR-306

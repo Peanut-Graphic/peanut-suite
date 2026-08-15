@@ -11,7 +11,7 @@
  * Text Domain: peanut-suite
  * Domain Path: /languages
  * Requires at least: 6.0
- * Requires PHP: 8.0
+ * Requires PHP: 8.1
  */
 
 if (!defined('ABSPATH')) {
