@@ -14,6 +14,10 @@ environments:
     kind: production
     provider: GitHub Releases and Peanut License Server
     url: "https://github.com/Peanut-Graphic/peanut-suite/releases"
+  - name: central-first-party-install
+    kind: production
+    provider: peanutgraphic.com shared WordPress hosting
+    url: "https://peanutgraphic.com"
   - name: firebase-backend
     kind: production
     provider: Firebase project peanut-suite
@@ -26,7 +30,7 @@ runtimes:
       - { scope: dependency, source: composer.json, value: "require >=8.1; platform 8.3" }
       - { scope: ci, source: .github/workflows/tests.yml, value: "8.3" }
       - { scope: ci, source: .github/workflows/wp-contract.yml, value: "8.3" }
-    production_observation: { status: not-applicable }
+    production_observation: { status: verified, value: "PHP 8.5.9 on the central first-party installation; distributed client hosts unverified", observed_at: "2026-08-15T01:09:00-04:00", evidence: "read-only host interpreter and active-plugin inventory" }
   - name: node
     baseline: "22"
     declarations:
@@ -39,7 +43,7 @@ runtimes:
     declarations:
       - { scope: dependency, source: peanut-suite.php, value: "Requires at least 6.0" }
       - { scope: test, source: .github/workflows/wp-contract.yml, value: "WordPress latest" }
-    production_observation: { status: not-applicable }
+    production_observation: { status: verified, value: "WordPress 6.9.7 on the central first-party installation; distributed client hosts unverified", observed_at: "2026-08-15T01:09:00-04:00", evidence: "read-only WP-CLI core-version and active-plugin inventory" }
 databases:
   - name: host-database
     role: transactional
@@ -47,7 +51,7 @@ databases:
     declarations:
       - { scope: ci, source: .github/workflows/wp-contract.yml, value: "mysql:8" }
     production_equivalent_test: "yes"
-    production_observation: { status: not-applicable }
+    production_observation: { status: verified, value: "MariaDB 10.6.27, latin1_swedish_ci server collation, SQL mode ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION on the central first-party installation; distributed client hosts unverified", observed_at: "2026-08-15T01:09:00-04:00", evidence: "read-only database metadata query; no application rows read" }
   - name: firestore
     role: transactional
     baseline: Firebase Firestore managed service
@@ -57,6 +61,16 @@ databases:
     production_equivalent_test: unknown
     production_observation: { status: unverified }
 services:
+  - kind: scheduler
+    baseline: WordPress cron on each plugin installation
+    declarations:
+      - { scope: dependency, source: core and modules, value: "daily maintenance plus analytics, attribution, backlinks, contacts ML, GA, monitoring, reports, security, SEO, sequences, visitors, and webhook schedules" }
+    production_observation: { status: verified, value: "Central WP-Cron registers daily maintenance, monitor uptime/health/web-vitals, and weekly lead-scoring training; many declared module hooks, including analytics, attribution, and webhooks, are absent", observed_at: "2026-08-15T01:39:00-04:00", evidence: "read-only peanut_* WP-Cron schedule metadata; no event executed" }
+  - kind: other
+    baseline: Local ML service for segmentation, clustering, attribution, and lead scoring
+    declarations:
+      - { scope: dependency, source: core/class-peanut-activator.php and ML module classes, value: "defaults to http://127.0.0.1:8100 for health, prediction, clustering, and training" }
+    production_observation: { status: verified, value: "Central host loopback /health reports peanut-ml 1.0.0 healthy", observed_at: "2026-08-15T01:39:00-04:00", evidence: "read-only loopback health request; no prediction or training invoked" }
   - kind: other
     baseline: Firebase Cloud Functions
     declarations:
@@ -88,15 +102,15 @@ distribution:
 exceptions:
   - id: PAR-207
     concern: PHP and Node runtime declarations disagree
-    reason: The plugin header permits PHP 8.0 while Composer requires PHP 8.1, and both CI and Firebase Functions remain on Node 20 instead of the fleet Node 22 baseline.
+    reason: The plugin header permits PHP 8.0 while Composer requires PHP 8.1, the central first-party installation runs PHP 8.5.9, and both CI and Firebase Functions remain on Node 20 instead of the fleet Node 22 baseline.
     risk: A host can satisfy the advertised plugin requirement but fail dependency constraints, while JavaScript behavior can differ from the fleet-supported runtime.
     owner: Peanut Graphic
     verification: Reconcile the WordPress header, Composer constraint, platform pin, CI matrices, and Node declarations, then rerun plugin and Firebase builds on the selected lanes.
     review_date: "2026-11-14"
     status: proposed
   - id: PAR-306
-    concern: Host-controlled MySQL or MariaDB engine
-    reason: A distributed WordPress plugin cannot dictate the customer hosting database.
+    concern: Host-controlled MySQL or MariaDB engine is not covered by the single CI lane
+    reason: The central first-party installation runs MariaDB 10.6.27 with latin1_swedish_ci and a non-strict SQL mode, the only real WordPress lane uses mysql:8, and a distributed WordPress plugin cannot dictate customer hosting databases.
     risk: Engine-specific schema behavior can escape a single-engine CI lane.
     owner: Peanut Graphic
     verification: Run the reusable WordPress integration contract against supported MySQL and MariaDB lanes.
@@ -128,7 +142,7 @@ exceptions:
     status: proposed
 verification:
   status: live-verified
-  audited_commit: 313e506e8df0a778c47b1c1d039937a6f4ca2c0b
+  audited_commit: 22377e4cd51cc02bf24e157127e01f2cecdd7b2a
   last_reviewed: "2026-08-15"
   sources:
     - peanut-suite.php
@@ -149,7 +163,10 @@ verification:
     - read-only Firebase CLI projects/functions/hosting/firestore metadata queries
     - Peanut-Graphic/Peanut-meta:scripts/publish-plugin.sh
     - Peanut-Graphic/Peanut-meta:scripts/verify-plugin-release.sh
+    - Read-only central first-party PHP, WordPress, active-plugin, WP-Cron, loopback ML health, MariaDB version, collation, and SQL-mode metadata on 2026-08-15
   outstanding:
+    - Inventory supported distributed client-host PHP, WordPress, database, scheduler, and ML contracts without collecting customer data.
+    - Reconcile why many declared central module cron hooks are not registered; do not execute hooks or retrain models without approval.
     - Restore an approved read-only Firebase control-plane session, then verify the live Node runtime, Firestore, Storage, deployment owner, deployed revision, data safeguards, and rollback controls in PAR-310; do not deploy or change account configuration as part of inventory.
     - Decide whether the absent default Firebase Hosting site is intentional; the live API currently answers only at its direct Cloud Functions endpoint.
     - Align PHP and Node declarations with fleet baselines in PAR-207 and PAR-205.
