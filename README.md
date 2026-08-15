@@ -8,6 +8,8 @@ Shared Firebase backend for the Peanut Suite of comedy industry tools:
 
 ## Architecture
 
+The distributed WordPress plugin requires WordPress 6.0 or newer and PHP 8.1 or newer.
+
 ```
 peanut-suite/
 ├── functions/           # Cloud Functions (TypeScript)

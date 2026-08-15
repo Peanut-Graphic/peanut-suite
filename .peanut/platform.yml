@@ -1,0 +1,176 @@
+schema_version: 1
+project:
+  id: peanut-suite
+  name: Peanut Suite
+  classification: distributed-plugin
+  repository: https://github.com/Peanut-Graphic/peanut-suite.git
+  lifecycle: active
+ownership:
+  platform: Peanut Graphic
+  deployment: Peanut Graphic
+  rollback: Peanut Graphic
+environments:
+  - name: distribution
+    kind: production
+    provider: GitHub Releases and Peanut License Server
+    url: "https://github.com/Peanut-Graphic/peanut-suite/releases"
+  - name: central-first-party-install
+    kind: production
+    provider: peanutgraphic.com shared WordPress hosting
+    url: "https://peanutgraphic.com"
+  - name: firebase-backend
+    kind: production
+    provider: Firebase project peanut-suite
+    url: "https://us-central1-peanut-suite.cloudfunctions.net/api"
+runtimes:
+  - name: php
+    baseline: WordPress compatibility matrix
+    declarations:
+      - { scope: dependency, source: peanut-suite.php, value: "Requires PHP 8.1" }
+      - { scope: dependency, source: composer.json, value: "require >=8.1; platform 8.1.0" }
+      - { scope: documentation, source: README.md, value: "WordPress 6.0+; PHP 8.1+" }
+      - { scope: ci, source: .github/workflows/tests.yml, value: "required PHP 8.1 minimum property/regression lane and PHP 8.3 current lane" }
+      - { scope: ci, source: .github/workflows/wp-contract.yml, value: "8.3" }
+    production_observation: { status: verified, value: "PHP 8.5.9 on the central first-party installation; distributed client hosts unverified", observed_at: "2026-08-15T01:09:00-04:00", evidence: "read-only host interpreter and active-plugin inventory" }
+  - name: node
+    baseline: "22"
+    declarations:
+      - { scope: ci, source: .github/workflows/tests.yml, value: "20" }
+      - { scope: ci, source: .github/workflows/accessibility.yml, value: "20" }
+      - { scope: hosting, source: functions/package.json, value: "engines.node 20" }
+    production_observation: { status: unverified }
+  - name: wordpress
+    baseline: WordPress 6.0+
+    declarations:
+      - { scope: dependency, source: peanut-suite.php, value: "Requires at least 6.0" }
+      - { scope: test, source: .github/workflows/wp-contract.yml, value: "WordPress latest" }
+    production_observation: { status: verified, value: "WordPress 6.9.7 on the central first-party installation; distributed client hosts unverified", observed_at: "2026-08-15T01:09:00-04:00", evidence: "read-only WP-CLI core-version and active-plugin inventory" }
+databases:
+  - name: host-database
+    role: transactional
+    baseline: Host MySQL or MariaDB compatibility
+    declarations:
+      - { scope: ci, source: .github/workflows/wp-contract.yml, value: "mysql:8" }
+    production_equivalent_test: "yes"
+    production_observation: { status: verified, value: "MariaDB 10.6.27, latin1_swedish_ci server collation, SQL mode ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION on the central first-party installation; distributed client hosts unverified", observed_at: "2026-08-15T01:09:00-04:00", evidence: "read-only database metadata query; no application rows read" }
+  - name: firestore
+    role: transactional
+    baseline: Firebase Firestore managed service
+    declarations:
+      - { scope: hosting, source: firebase.json, value: "Firestore rules and indexes" }
+      - { scope: documentation, source: README.md, value: "production-mode Firestore project peanut-suite" }
+    production_equivalent_test: unknown
+    production_observation: { status: unverified }
+services:
+  - kind: scheduler
+    baseline: WordPress cron on each plugin installation
+    declarations:
+      - { scope: dependency, source: core and modules, value: "daily maintenance plus analytics, attribution, backlinks, contacts ML, GA, monitoring, reports, security, SEO, sequences, visitors, and webhook schedules" }
+    production_observation: { status: verified, value: "Central WP-Cron registers daily maintenance, monitor uptime/health/web-vitals, and weekly lead-scoring training; many declared module hooks, including analytics, attribution, and webhooks, are absent", observed_at: "2026-08-15T01:39:00-04:00", evidence: "read-only peanut_* WP-Cron schedule metadata; no event executed" }
+  - kind: other
+    baseline: Local ML service for segmentation, clustering, attribution, and lead scoring
+    declarations:
+      - { scope: dependency, source: core/class-peanut-activator.php and ML module classes, value: "defaults to http://127.0.0.1:8100 for health, prediction, clustering, and training" }
+    production_observation: { status: verified, value: "Central host loopback /health reports peanut-ml 1.0.0 healthy", observed_at: "2026-08-15T01:39:00-04:00", evidence: "read-only loopback health request; no prediction or training invoked" }
+  - kind: other
+    baseline: Firebase Cloud Functions
+    declarations:
+      - { scope: hosting, source: firebase.json, value: "functions codebase peanut-api" }
+      - { scope: documentation, source: README.md, value: "manual Firebase CLI deployment" }
+    production_observation: { status: verified, value: "public Google Cloud Function API healthy; service peanut-suite-api version 1.0.1", observed_at: "2026-08-15T04:16:13Z", evidence: "GET https://us-central1-peanut-suite.cloudfunctions.net/api/api/v1/health returned HTTP 200" }
+  - kind: object-storage
+    baseline: Firebase Storage
+    declarations:
+      - { scope: hosting, source: firebase.json, value: "storage.rules" }
+    production_observation: { status: unverified }
+deployment:
+  mode: manual
+  source_of_truth: README.md and firebase.json Firebase CLI commands
+  ci_gate: "no"
+  concurrency_lock: unknown
+  exact_revision: "no"
+  backup_or_snapshot: unknown
+  migration_safety: unknown
+  health_check: { status: declared, endpoint: "https://us-central1-peanut-suite.cloudfunctions.net/api/api/v1/health" }
+  rollback: unknown
+distribution:
+  mode: signed-github-release
+  source_of_truth: Peanut Meta scripts/publish-plugin.sh
+  versioned_artifact: "yes"
+  signed: "yes"
+  canary: "yes"
+  rollback: unknown
+exceptions:
+  - id: PAR-207
+    concern: The PHP minimum is reconciled, but Node runtime declarations remain below the fleet baseline
+    reason: The plugin header, README, Composer requirement and platform, lockfile, and required minimum CI now agree on PHP 8.1, alongside the current PHP 8.3 and real WordPress lanes. The central first-party installation runs PHP 8.5.9, while JavaScript CI and Firebase Functions remain on Node 20 instead of the fleet Node 22 baseline.
+    risk: The distributed PHP minimum is protected from regression, but JavaScript behavior can still differ from the fleet-supported runtime.
+    owner: Peanut Graphic
+    verification: Keep the PHP 8.1 declaration contract and required minimum lane green, then separately verify Firebase before any Node runtime change.
+    review_date: "2026-11-14"
+    status: proposed
+  - id: PAR-306
+    concern: Host-controlled MySQL or MariaDB engine is not covered by the single CI lane
+    reason: The central first-party installation runs MariaDB 10.6.27 with latin1_swedish_ci and a non-strict SQL mode, the only real WordPress lane uses mysql:8, and a distributed WordPress plugin cannot dictate customer hosting databases.
+    risk: Engine-specific schema behavior can escape a single-engine CI lane.
+    owner: Peanut Graphic
+    verification: Run the reusable WordPress integration contract against supported MySQL and MariaDB lanes.
+    review_date: "2026-11-13"
+    status: accepted
+  - id: PAR-310
+    concern: Firebase backend ownership and end-state are not independently verified
+    reason: The public Cloud Functions API is live and healthy, but the repository contains no CI deploy workflow, the default Firebase Hosting site is not deployed, and invalid local Firebase authentication prevents read-only verification of the project runtime, Firestore, Storage, deployed revision, or control-plane ownership.
+    risk: Backend changes can bypass CI gating, exact-revision assertions, backup checks, health verification, and a documented rollback path.
+    owner: Peanut Graphic
+    verification: Confirm the live Firebase project, consumers, deployment owner, deployed revision, data safeguards, health surface, and intended long-term ownership.
+    review_date: "2026-11-14"
+    status: proposed
+  - id: PAR-404
+    concern: Repository-local packaging path duplicates the central publisher
+    reason: package.json, scripts/package.sh, and scripts/package.js can build a plugin ZIP independently of the canonical signed publisher.
+    risk: A locally packaged artifact can omit signing, canary, license-server advertisement, or canonical ZIP-layout checks.
+    owner: Peanut Graphic
+    verification: Convert the local package command into a dry-run wrapper around the central publisher or retire it, then verify the canonical artifact layout.
+    review_date: "2026-11-14"
+    status: proposed
+  - id: PAR-405
+    concern: Release metadata drift and rollback verification are unresolved
+    reason: The plugin reports 4.2.7 while package.json reports 4.2.1 and frontend/package.json reports 4.1.6; the central publisher verifies signing and canary installation but does not encode a rollback assertion.
+    risk: Local packaging can label the wrong version, and an update incident lacks a source-verifiable rollback control.
+    owner: Peanut Graphic
+    verification: Standardize all version declarations and add a tested rollback check to the canonical release contract.
+    review_date: "2026-11-14"
+    status: proposed
+verification:
+  status: live-verified
+  audited_commit: 22377e4cd51cc02bf24e157127e01f2cecdd7b2a
+  last_reviewed: "2026-08-15"
+  sources:
+    - peanut-suite.php
+    - composer.json
+    - package.json
+    - frontend/package.json
+    - functions/package.json
+    - .firebaserc
+    - firebase.json
+    - README.md
+    - scripts/package.sh
+    - scripts/package.js
+    - .github/workflows/tests.yml
+    - .github/workflows/accessibility.yml
+    - .github/workflows/wp-contract.yml
+    - GET https://us-central1-peanut-suite.cloudfunctions.net/api/api/v1/health
+    - GET https://peanut-suite.web.app/api/v1/health
+    - read-only Firebase CLI projects/functions/hosting/firestore metadata queries
+    - Peanut-Graphic/Peanut-meta:scripts/publish-plugin.sh
+    - Peanut-Graphic/Peanut-meta:scripts/verify-plugin-release.sh
+    - Read-only central first-party PHP, WordPress, active-plugin, WP-Cron, loopback ML health, MariaDB version, collation, and SQL-mode metadata on 2026-08-15
+  outstanding:
+    - Inventory supported distributed client-host PHP, WordPress, database, scheduler, and ML contracts without collecting customer data.
+    - Reconcile why many declared central module cron hooks are not registered; do not execute hooks or retrain models without approval.
+    - Restore an approved read-only Firebase control-plane session, then verify the live Node runtime, Firestore, Storage, deployment owner, deployed revision, data safeguards, and rollback controls in PAR-310; do not deploy or change account configuration as part of inventory.
+    - Decide whether the absent default Firebase Hosting site is intentional; the live API currently answers only at its direct Cloud Functions endpoint.
+    - Align PHP and Node declarations with fleet baselines in PAR-207 and PAR-205.
+    - Retire or wrap the repository-local packager in PAR-404.
+    - Standardize release metadata and add rollback verification in PAR-405.
+    - Add a MariaDB WordPress integration lane in PAR-306.
