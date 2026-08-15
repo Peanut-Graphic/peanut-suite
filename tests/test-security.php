@@ -41,18 +41,36 @@ class Test_Security extends Peanut_Suite_TestCase {
         $result = esc_attr($input);
 
         $this->assertStringContainsString('&quot;', $result);
-        $this->assertStringNotContainsString('onclick', strtolower($result));
+        $this->assertStringNotContainsString('" onclick="', $result);
+        $this->assertSame(
+            '&quot; onclick=&quot;alert(1)&quot;',
+            $result,
+            'esc_attr encodes delimiters; it does not remove harmless attribute text.'
+        );
     }
 
     /**
-     * Test that sanitize_email validates email format.
+     * Test WordPress sanitize_email semantics without confusing sanitization
+     * with validation. Invalid-but-clean syntax is intentionally preserved by
+     * WordPress; callers that require validity must additionally use is_email.
      */
-    public function test_sanitize_email_validates_format() {
+    public function test_sanitize_email_removes_disallowed_characters() {
         $valid_email = 'test@example.com';
-        $invalid_email = 'not-an-email';
 
         $this->assertEquals($valid_email, sanitize_email($valid_email));
-        $this->assertNotEquals($invalid_email, sanitize_email($invalid_email));
+        $this->assertEquals('not-an-email', sanitize_email('not-an-email'));
+        $this->assertEquals('test@example.com', sanitize_email('te(st)@example.com'));
+    }
+
+    /**
+     * The plugin's security boundary must reject invalid email syntax even
+     * though the lower-level WordPress sanitizer preserves it.
+     */
+    public function test_security_service_rejects_invalid_email_syntax() {
+        require_once dirname(__DIR__) . '/core/services/class-peanut-security.php';
+
+        $this->assertSame('', Peanut_Security::sanitize_field('contact_email', 'not-an-email'));
+        $this->assertSame('test@example.com', Peanut_Security::sanitize_field('contact_email', 'test@example.com'));
     }
 
     /**

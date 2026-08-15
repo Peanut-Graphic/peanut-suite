@@ -52,7 +52,9 @@ if (!function_exists('sanitize_text_field')) {
 
 if (!function_exists('sanitize_email')) {
     function sanitize_email($email) {
-        return filter_var($email, FILTER_SANITIZE_EMAIL);
+        // Mirror WordPress sanitization: strip disallowed characters without
+        // claiming to validate the address's syntax.
+        return preg_replace('/[^a-z0-9+_.@-]/i', '', (string) $email);
     }
 }
 
