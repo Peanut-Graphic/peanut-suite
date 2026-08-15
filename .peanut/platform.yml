@@ -17,6 +17,7 @@ environments:
   - name: firebase-backend
     kind: production
     provider: Firebase project peanut-suite
+    url: "https://us-central1-peanut-suite.cloudfunctions.net/api"
 runtimes:
   - name: php
     baseline: WordPress compatibility matrix
@@ -61,7 +62,7 @@ services:
     declarations:
       - { scope: hosting, source: firebase.json, value: "functions codebase peanut-api" }
       - { scope: documentation, source: README.md, value: "manual Firebase CLI deployment" }
-    production_observation: { status: unverified }
+    production_observation: { status: verified, value: "public Google Cloud Function API healthy; service peanut-suite-api version 1.0.1", observed_at: "2026-08-15T04:16:13Z", evidence: "GET https://us-central1-peanut-suite.cloudfunctions.net/api/api/v1/health returned HTTP 200" }
   - kind: object-storage
     baseline: Firebase Storage
     declarations:
@@ -75,7 +76,7 @@ deployment:
   exact_revision: "no"
   backup_or_snapshot: unknown
   migration_safety: unknown
-  health_check: { status: missing }
+  health_check: { status: declared, endpoint: "https://us-central1-peanut-suite.cloudfunctions.net/api/api/v1/health" }
   rollback: unknown
 distribution:
   mode: signed-github-release
@@ -103,7 +104,7 @@ exceptions:
     status: accepted
   - id: PAR-310
     concern: Firebase backend ownership and end-state are not independently verified
-    reason: The repository contains a production-shaped Firebase backend and manual deploy instructions alongside the distributed WordPress plugin, but no CI deploy workflow or live project observation.
+    reason: The public Cloud Functions API is live and healthy, but the repository contains no CI deploy workflow, the default Firebase Hosting site is not deployed, and invalid local Firebase authentication prevents read-only verification of the project runtime, Firestore, Storage, deployed revision, or control-plane ownership.
     risk: Backend changes can bypass CI gating, exact-revision assertions, backup checks, health verification, and a documented rollback path.
     owner: Peanut Graphic
     verification: Confirm the live Firebase project, consumers, deployment owner, deployed revision, data safeguards, health surface, and intended long-term ownership.
@@ -126,9 +127,9 @@ exceptions:
     review_date: "2026-11-14"
     status: proposed
 verification:
-  status: source-audited
-  audited_commit: 17c3499ff0e105b207eb97e2cbb452959c0bae76
-  last_reviewed: "2026-08-14"
+  status: live-verified
+  audited_commit: 313e506e8df0a778c47b1c1d039937a6f4ca2c0b
+  last_reviewed: "2026-08-15"
   sources:
     - peanut-suite.php
     - composer.json
@@ -143,10 +144,14 @@ verification:
     - .github/workflows/tests.yml
     - .github/workflows/accessibility.yml
     - .github/workflows/wp-contract.yml
+    - GET https://us-central1-peanut-suite.cloudfunctions.net/api/api/v1/health
+    - GET https://peanut-suite.web.app/api/v1/health
+    - read-only Firebase CLI projects/functions/hosting/firestore metadata queries
     - Peanut-Graphic/Peanut-meta:scripts/publish-plugin.sh
     - Peanut-Graphic/Peanut-meta:scripts/verify-plugin-release.sh
   outstanding:
-    - Verify the live Firebase project, Node runtime, Firestore, Storage, deployment owner, revision, and rollback controls in PAR-310.
+    - Restore an approved read-only Firebase control-plane session, then verify the live Node runtime, Firestore, Storage, deployment owner, deployed revision, data safeguards, and rollback controls in PAR-310; do not deploy or change account configuration as part of inventory.
+    - Decide whether the absent default Firebase Hosting site is intentional; the live API currently answers only at its direct Cloud Functions endpoint.
     - Align PHP and Node declarations with fleet baselines in PAR-207 and PAR-205.
     - Retire or wrap the repository-local packager in PAR-404.
     - Standardize release metadata and add rollback verification in PAR-405.
