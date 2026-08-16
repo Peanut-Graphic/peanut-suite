@@ -32,6 +32,7 @@ define('PEANUT_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('PEANUT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('PEANUT_PLUGIN_BASENAME', plugin_basename(__FILE__));
 
+
 // API namespace
 define('PEANUT_API_NAMESPACE', 'peanut/v1');
 

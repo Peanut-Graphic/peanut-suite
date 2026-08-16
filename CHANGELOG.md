@@ -4,6 +4,44 @@
 
 - Corrected the standalone WordPress mocks and assertions to match real `absint`, `esc_attr`, and `sanitize_email` semantics, while adding an adversarial check that the plugin security service still rejects invalid email syntax.
 
+## 4.2.7
+
+### Fixed
+- **Enrol in WordPress auto-updates once, so releases actually land.** Sites were
+  not picking up published releases automatically.
+
+## 4.2.6
+
+### Fixed
+- **Licence checks survive a license-server outage.** Added a grace period so an
+  unreachable server does not immediately de-licence a working site, with
+  executable tests for the behaviour.
+
+## 4.2.5
+
+### Fixed
+- **Licence check failures are cached with backoff, and the plugin never HTTPs
+  itself.** A failing check previously retried hard, and a site could end up
+  making requests to its own host.
+
+## 4.2.4
+
+### Security
+- **Verify the signed entitlement — client half.** The licence grant is now
+  checked against the server's Ed25519 signature, so a tier cached in a
+  licensee-writable option can no longer be forged or replayed. Pairs with
+  peanut-license-server 1.4.3. (#27, audit C1b)
+- **The dev-licence shortcut is gated to non-production.** A `PEANUT-DEV-*` key
+  was accepted in production — found as a live incident. (#26, audit W0)
+
+## 4.2.3
+
+### Security
+- **Verify the Ed25519 signature of an update package before installing it.**
+  `Peanut_Updater` now fetches the `.manifest.json` sidecar, compares the sha256
+  with `hash_equals`, and refuses anything unsigned or unverifiable rather than
+  installing it. (#25)
+
 ## 4.2.2
 
 ### Security (microscope remediation)
