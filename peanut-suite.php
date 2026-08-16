@@ -32,6 +32,56 @@ define('PEANUT_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('PEANUT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('PEANUT_PLUGIN_BASENAME', plugin_basename(__FILE__));
 
+// Ed25519 public key that Peanut release packages are signed with — the key the
+// central publisher (Peanut-meta/scripts/publish-plugin.sh) signs manifests
+// against.
+define('PEANUT_SUITE_SIGNING_PUBKEY', 'NtHnWTBLVzCBKMAq9CO8LHDSD9ZfpGV0UloQdgToIwM=');
+
+// Composer autoload — bundles peanut/formflow-core, which carries the shared
+// signed-update verifier. Guarded so a missing vendor/ degrades to an admin
+// notice instead of a fatal.
+if (file_exists(PEANUT_PLUGIN_DIR . 'vendor/autoload.php')) {
+    require_once PEANUT_PLUGIN_DIR . 'vendor/autoload.php';
+}
+
+/**
+ * Refuse to install an update package that is not cryptographically ours.
+ *
+ * Suite shipped with no signature gate: whatever package a site was handed for
+ * this plugin, it installed, on transport trust alone. Transport trust is not
+ * authenticity.
+ *
+ * The gate downloads the package, fetches its `.manifest.json` sidecar, and
+ * verifies sha256 plus a detached Ed25519 signature before WordPress installs
+ * anything. It is FAIL-CLOSED: an unsigned or unverifiable package is refused.
+ *
+ * NOTE: every Suite release from here on must go through
+ * Peanut-meta/scripts/publish-plugin.sh, which signs and ships the manifest.
+ * An unsigned release will be correctly refused by every install running this.
+ */
+function peanut_suite_register_update_gate(): void {
+    if (!class_exists('\Peanut\FormCore\Update\SignedUpdateGate')) {
+        add_action('admin_notices', function () {
+            if (!current_user_can('update_plugins')) {
+                return;
+            }
+            echo '<div class="notice notice-error"><p><strong>Peanut Suite:</strong> '
+                . esc_html__('update signature verification is unavailable (formflow-core missing from vendor/). Updates are NOT being verified — reinstall from an official release package.', 'peanut-suite')
+                . '</p></div>';
+        });
+
+        return;
+    }
+
+    (new \Peanut\FormCore\Update\SignedUpdateGate(
+        PEANUT_PLUGIN_BASENAME,
+        ['peanutgraphic.com', 'github.com'],
+        PEANUT_SUITE_SIGNING_PUBKEY,
+        'peanut-suite'
+    ))->register();
+}
+add_action('plugins_loaded', 'peanut_suite_register_update_gate', 1);
+
 // API namespace
 define('PEANUT_API_NAMESPACE', 'peanut/v1');
 

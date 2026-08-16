@@ -1,7 +1,18 @@
 #!/bin/bash
 
-# Peanut Suite - WordPress Plugin Packaging Script
-# Creates a distributable ZIP file of the plugin
+# Peanut Suite — LOCAL packaging only.
+#
+# Builds a plugin ZIP for local testing. This artifact is NOT releasable: it
+# carries no Ed25519 signature and no .manifest.json sidecar, and Suite's
+# signed-update gate refuses exactly that. Handing this zip to a site as an
+# update will fail closed, by design.
+#
+# To release, use the central publisher, which signs the artifact, ships the
+# manifest, bumps and verifies the version constants, updates the license-server
+# option and canaries on peanutgraphic.com:
+#   Peanut-meta/scripts/publish-plugin.sh peanut-suite <version> [--ship]
+#
+# PAR-404.
 
 set -e
 
