@@ -55,9 +55,9 @@ jobs:
       - name: Verify declared PHP support
         run: php scripts/verify-php-runtime.php
 
-      # Net 2 — dependency audit (non-blocking to start; ratchet to blocking later).
+      # Net 2 — dependency audit. Blocking: the tree is clean and stays clean.
       - name: Dependency audit (composer)
-        run: composer audit || true
+        run: composer audit
 
       # Net 6 — property tests over PURE functions (no WordPress).
       - name: Property tests
@@ -108,9 +108,10 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
-      # Net 2 — dependency audit (non-blocking to start; ratchet later).
+      # Net 2 — dependency audit. Blocking at high; covers frontend/ only —
+      # functions/ has no audit gate at all (see the PR body).
       - name: Dependency audit (npm)
-        run: npm audit --audit-level=high || true
+        run: npm audit --audit-level=high
 
       # Net 6 — fast-check property tests (+ the rest of the vitest suite).
       - name: Vitest (property + unit + a11y)
