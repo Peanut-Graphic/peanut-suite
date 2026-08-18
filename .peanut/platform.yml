@@ -50,7 +50,7 @@ databases:
     role: transactional
     baseline: Host MySQL or MariaDB compatibility
     declarations:
-      - { scope: ci, source: .github/workflows/wp-contract.yml, value: "mysql:8" }
+      - { scope: ci, source: .github/workflows/wp-contract.yml, value: "mysql:8 compatibility and mariadb:10.6 production-family real WordPress contract lanes" }
     production_equivalent_test: "yes"
     production_observation: { status: verified, value: "MariaDB 10.6.27, latin1_swedish_ci server collation, SQL mode ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION on the central first-party installation; distributed client hosts unverified", observed_at: "2026-08-15T01:09:00-04:00", evidence: "read-only database metadata query; no application rows read" }
   - name: firestore
@@ -110,11 +110,11 @@ exceptions:
     review_date: "2026-11-14"
     status: proposed
   - id: PAR-306
-    concern: Host-controlled MySQL or MariaDB engine is not covered by the single CI lane
-    reason: The central first-party installation runs MariaDB 10.6.27 with latin1_swedish_ci and a non-strict SQL mode, the only real WordPress lane uses mysql:8, and a distributed WordPress plugin cannot dictate customer hosting databases.
-    risk: Engine-specific schema behavior can escape a single-engine CI lane.
+    concern: Distributed client database versions, collations, and SQL modes remain unverified
+    reason: Real WordPress contracts now exercise MySQL 8 and the central installation's MariaDB 10.6 family. A distributed WordPress plugin still cannot dictate customer hosting databases, so client-host versions, collations, SQL modes, and sequential historical upgrades remain unknown.
+    risk: A client-specific legacy engine, strict mode, or collation can still expose schema behavior outside the two CI lanes.
     owner: Peanut Graphic
-    verification: Run the reusable WordPress integration contract against supported MySQL and MariaDB lanes.
+    verification: Keep both real-WordPress lanes green; inventory supported client database contracts and add sanitized sequential-upgrade fixtures for each retained family.
     review_date: "2026-11-13"
     status: accepted
   - id: PAR-310
@@ -173,4 +173,4 @@ verification:
     - Align PHP and Node declarations with fleet baselines in PAR-207 and PAR-205.
     - Retire or wrap the repository-local packager in PAR-404.
     - Standardize release metadata and add rollback verification in PAR-405.
-    - Add a MariaDB WordPress integration lane in PAR-306.
+    - Inventory supported distributed-client database contracts and add sanitized sequential-upgrade fixtures for each retained family under PAR-306.
