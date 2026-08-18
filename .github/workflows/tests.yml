@@ -4,7 +4,7 @@
 # (wp-contract.yml) against a real WordPress + MySQL. The jobs here are the ones that
 # run WITHOUT a WP boot, plus the blocking CLASS-007 static foot-gun gate:
 #   - static-footguns (CLASS-007): semgrep over modules/ + core/ (BLOCKING)
-#   - Net 2 (security): composer audit + npm audit (non-blocking to start; ratchet later)
+#   - Net 2 (security): composer audit + npm audit — BLOCKING (ratcheted 2026-08-18)
 #   - Net 6 (property): PHP pure-function property tests + JS fast-check property tests
 #   - Regression guards (self-contained pure PHP)
 name: tests
