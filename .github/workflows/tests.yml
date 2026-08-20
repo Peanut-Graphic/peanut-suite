@@ -4,7 +4,7 @@
 # (wp-contract.yml) against a real WordPress + MySQL. The jobs here are the ones that
 # run WITHOUT a WP boot, plus the blocking CLASS-007 static foot-gun gate:
 #   - static-footguns (CLASS-007): semgrep over modules/ + core/ (BLOCKING)
-#   - Net 2 (security): composer audit + npm audit (non-blocking to start; ratchet later)
+#   - Net 2 (security): composer audit + npm audit — BLOCKING (ratcheted 2026-08-18)
 #   - Net 6 (property): PHP pure-function property tests + JS fast-check property tests
 #   - Regression guards (self-contained pure PHP)
 name: tests
@@ -55,9 +55,9 @@ jobs:
       - name: Verify declared PHP support
         run: php scripts/verify-php-runtime.php
 
-      # Net 2 — dependency audit (non-blocking to start; ratchet to blocking later).
+      # Net 2 — dependency audit. Blocking: the tree is clean and stays clean.
       - name: Dependency audit (composer)
-        run: composer audit || true
+        run: composer audit
 
       # Net 6 — property tests over PURE functions (no WordPress).
       - name: Property tests
@@ -108,9 +108,16 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
-      # Net 2 — dependency audit (non-blocking to start; ratchet later).
+      # Net 2 — dependency audit. Blocking at MODERATE; covers frontend/ only
+      # — functions/ has no audit gate at all (see the PR body).
+      #
+      # Not "high": npm grades plenty of real XSS/prototype-pollution findings
+      # "moderate", including GHSA-55q2-fjhq-7xh7 (dompurify), which a high
+      # gate lets through with exit 0 — verified by execution against the
+      # vulnerable pin. The tree is clean at moderate today, so this holds the
+      # line rather than merely looking like it does.
       - name: Dependency audit (npm)
-        run: npm audit --audit-level=high || true
+        run: npm audit --audit-level=moderate
 
       # Net 6 — fast-check property tests (+ the rest of the vitest suite).
       - name: Vitest (property + unit + a11y)
