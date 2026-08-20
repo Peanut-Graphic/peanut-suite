@@ -1,4 +1,5 @@
 import * as admin from "firebase-admin";
+import * as crypto from "crypto";
 import { Request, Response, NextFunction } from "express";
 import { PeanutAccount } from "../models/PeanutAccount";
 
@@ -158,7 +159,6 @@ export const verifyWebhookSignature = (
   signature: string,
   secret: string,
 ): boolean => {
-  const crypto = require("crypto");
   const expectedSignature = crypto
     .createHmac("sha256", secret)
     .update(payload)

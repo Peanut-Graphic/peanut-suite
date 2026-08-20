@@ -108,10 +108,16 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
-      # Net 2 — dependency audit. Blocking at high; covers frontend/ only —
-      # functions/ has no audit gate at all (see the PR body).
+      # Net 2 — dependency audit. Blocking at MODERATE; covers frontend/ only
+      # — functions/ has no audit gate at all (see the PR body).
+      #
+      # Not "high": npm grades plenty of real XSS/prototype-pollution findings
+      # "moderate", including GHSA-55q2-fjhq-7xh7 (dompurify), which a high
+      # gate lets through with exit 0 — verified by execution against the
+      # vulnerable pin. The tree is clean at moderate today, so this holds the
+      # line rather than merely looking like it does.
       - name: Dependency audit (npm)
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=moderate
 
       # Net 6 — fast-check property tests (+ the rest of the vitest suite).
       - name: Vitest (property + unit + a11y)
