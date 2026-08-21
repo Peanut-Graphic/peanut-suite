@@ -4,6 +4,30 @@
 
 - Corrected the standalone WordPress mocks and assertions to match real `absint`, `esc_attr`, and `sanitize_email` semantics, while adding an adversarial check that the plugin security service still rejects invalid email syntax.
 
+## 4.2.9
+
+### Security
+- **Hide-login now actually blocks `wp-login.php`.** The blocker was
+  registered on `init@1` from within the plugin's own `init@10` boot — a
+  priority that had already run — so `hide_login_init` never executed on any
+  web request and every site that enabled hide-login still served the login
+  page to anyone. The login-URL rewriting filters did register, which made
+  the feature look half-alive. Guarded by a real-WordPress regression test
+  that intercepts the block of an unauthorised login request and is proven
+  to fail on the unfixed code.
+
+## 4.2.8
+
+### Security
+- **Dependency refresh clearing the critical vitest advisory chain**
+  (vitest 2.1.9 → 3.2.7, dropping the nested vite 5.4.21 / esbuild 0.21.5
+  duplicates; dompurify → 3.4.14) and the high minimatch advisory via
+  typescript-eslint ^8. The `functions/` webhook signature check now uses a
+  top-level `crypto` import.
+- **The dependency audit gates are now blocking** for both composer and npm
+  (npm at `--audit-level=moderate`, since npm grades most frontend XSS
+  advisories moderate), each verified passing before the flip.
+
 ## 4.2.7
 
 ### Fixed
@@ -64,30 +88,6 @@
 # Changelog
 
 All notable changes to Peanut Suite will be documented in this file.
-
-## [4.2.9] - 2026-08-21
-
-### Security
-- **Hide-login now actually blocks `wp-login.php`.** The blocker was
-  registered on `init@1` from within the plugin's own `init@10` boot — a
-  priority that had already run — so `hide_login_init` never executed on any
-  web request and every site that enabled hide-login still served the login
-  page to anyone. The login-URL rewriting filters did register, which made
-  the feature look half-alive. Guarded by a real-WordPress regression test
-  that intercepts the block of an unauthorised login request and is proven
-  to fail on the unfixed code.
-
-## [4.2.8] - 2026-08-21
-
-### Security
-- **Dependency refresh clearing the critical vitest advisory chain**
-  (vitest 2.1.9 → 3.2.7, dropping the nested vite 5.4.21 / esbuild 0.21.5
-  duplicates; dompurify → 3.4.14) and the high minimatch advisory via
-  typescript-eslint ^8. The `functions/` webhook signature check now uses a
-  top-level `crypto` import.
-- **The dependency audit gates are now blocking** for both composer and npm
-  (npm at `--audit-level=moderate`, since npm grades most frontend XSS
-  advisories moderate), each verified passing before the flip.
 
 ## [4.1.9] - 2026-05-15
 
