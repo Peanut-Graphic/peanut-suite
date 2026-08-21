@@ -141,6 +141,14 @@ exceptions:
     verification: Standardize all version declarations and add a tested rollback check to the canonical release contract.
     review_date: "2026-11-14"
     status: proposed
+  - id: SEC-ADV-2026-08-uuid
+    concern: One open Dependabot MEDIUM advisory (uuid < 11.1.1) in functions/ cannot be closed by any change here
+    reason: GHSA-w5hq-g745-h8pq requires uuid >= 11.1.1; the functions/ tree carries uuid 9.0.1/10.0.0 pinned internally by gaxios and teeny-request (Google Cloud transitives declaring ^9). The real fix was attempted 2026-08-21 -- root uuid ^11.1.1 plus firebase-admin ^14, which drops admin's own uuid entirely -- and the alert STILL does not clear because those two libraries pin ^9 regardless. Forcing an override would run uuid 11 inside libraries never tested against it, in a package with no test suite.
+    risk: Runtime scope but low -- uuid v4 generation semantics are unchanged across the majors in question.
+    owner: Peanut Graphic
+    verification: On review, check gaxios and teeny-request for releases accepting uuid >= 11 (npm view <pkg> dependencies.uuid), then take firebase-admin ^14 in the same change. Do not re-attempt the firebase-admin bump alone -- it is proven insufficient.
+    review_date: "2026-09-20"
+    status: accepted
 verification:
   status: live-verified
   audited_commit: 22377e4cd51cc02bf24e157127e01f2cecdd7b2a
