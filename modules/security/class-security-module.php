@@ -83,7 +83,17 @@ class Security_Module {
     private function init_hooks(): void {
         // Hide login URL
         if ($this->settings['hide_login_enabled']) {
-            add_action('init', [$this, 'hide_login_init'], 1);
+            // The plugin boots via peanut_init on init@10, so registering
+            // init@1 from here targets a priority that has ALREADY RUN --
+            // hide_login_init never fired and the hide-login feature has
+            // been dead since it shipped (the fleet notes flagged it; this
+            // is the mechanism). Same family as peanut-connect's dead
+            // migration hook and formflow-lite's dead connector init.
+            if (did_action('init') || doing_action('init')) {
+                $this->hide_login_init();
+            } else {
+                add_action('init', [$this, 'hide_login_init'], 1);
+            }
             add_filter('site_url', [$this, 'filter_login_url'], 10, 4);
             add_filter('wp_redirect', [$this, 'filter_wp_redirect'], 10, 2);
             add_action('wp_loaded', [$this, 'handle_login_redirect']);
