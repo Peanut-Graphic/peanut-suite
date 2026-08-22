@@ -151,8 +151,8 @@ exceptions:
     status: accepted
 verification:
   status: live-verified
-  audited_commit: 22377e4cd51cc02bf24e157127e01f2cecdd7b2a
-  last_reviewed: "2026-08-15"
+  audited_commit: 8e5bcfd8c7e67d2012677471c3e9b53217e02ff2
+  last_reviewed: "2026-08-22"
   sources:
     - peanut-suite.php
     - composer.json
@@ -165,6 +165,9 @@ verification:
     - scripts/package.sh
     - scripts/package.js
     - .github/workflows/tests.yml
+    - .github/dependency-audit-exceptions.json
+    - functions/scripts/verify-dependency-audit.mjs
+    - functions/test/verify-dependency-audit.test.mjs
     - .github/workflows/accessibility.yml
     - .github/workflows/wp-contract.yml
     - GET https://us-central1-peanut-suite.cloudfunctions.net/api/api/v1/health
@@ -182,3 +185,4 @@ verification:
     - Retire or wrap the repository-local packager in PAR-404.
     - Standardize release metadata and add rollback verification in PAR-405.
     - Inventory supported distributed-client database contracts and add sanitized sequential-upgrade fixtures for each retained family under PAR-306.
+    - Keep the Firebase functions production-dependency audit blocking at moderate and retire ADV-001 as soon as the declared transitive fix exists.

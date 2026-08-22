@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "severity_floor": "moderate",
+  "maximum_review_days": 30,
+  "exceptions": [
+    {
+      "id": "ADV-001",
+      "package": "uuid",
+      "advisory": "GHSA-w5hq-g745-h8pq",
+      "severity": "moderate",
+      "review_date": "2026-09-20"
+    }
+  ]
+}
