@@ -151,8 +151,8 @@ exceptions:
     status: accepted
 verification:
   status: live-verified
-  audited_commit: 8e5bcfd8c7e67d2012677471c3e9b53217e02ff2
-  last_reviewed: "2026-08-22"
+  audited_commit: 9132d7ddce4e191e88278026daac66da40b2cd36
+  last_reviewed: "2026-08-23"
   sources:
     - peanut-suite.php
     - composer.json
@@ -165,6 +165,10 @@ verification:
     - scripts/package.sh
     - scripts/package.js
     - .github/workflows/tests.yml
+    - .github/workflows/dependency-audit.yml
+    - requirements-dependency-audit.txt
+    - requirements-dependency-audit.lock
+    - .peanut/platform/requirements.lock
     - .github/dependency-audit-exceptions.json
     - functions/scripts/verify-dependency-audit.mjs
     - functions/test/verify-dependency-audit.test.mjs
@@ -186,3 +190,4 @@ verification:
     - Standardize release metadata and add rollback verification in PAR-405.
     - Inventory supported distributed-client database contracts and add sanitized sequential-upgrade fixtures for each retained family under PAR-306.
     - Keep the Firebase functions production-dependency audit blocking at moderate and retire ADV-001 as soon as the declared transitive fix exists.
+    - Keep the hash-locked auditor and vendored platform-validator dependencies blocking-audited; both Python locks are zero-finding at this review.
