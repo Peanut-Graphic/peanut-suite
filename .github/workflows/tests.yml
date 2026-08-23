@@ -108,8 +108,8 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
-      # Net 2 — dependency audit. Blocking at MODERATE; covers frontend/ only
-      # — functions/ has no audit gate at all (see the PR body).
+      # Net 2 — dependency audit. Blocking at MODERATE; covers frontend/ only.
+      # The separate functions-security job owns the Firebase functions lock.
       #
       # Not "high": npm grades plenty of real XSS/prototype-pollution findings
       # "moderate", including GHSA-55q2-fjhq-7xh7 (dompurify), which a high
@@ -122,6 +122,43 @@ jobs:
       # Net 6 — fast-check property tests (+ the rest of the vitest suite).
       - name: Vitest (property + unit + a11y)
         run: npx vitest run
+
+  functions-security:
+    name: Firebase functions dependency audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: functions
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Test dependency audit exception contract
+        run: npm run test:audit-contract
+
+      - name: Audit production dependencies at the fleet moderate floor
+        run: |
+          set +e
+          npm audit --omit=dev --audit-level=moderate --json > "$RUNNER_TEMP/functions-npm-audit.json"
+          audit_status=$?
+          set -e
+          if [ "$audit_status" -gt 1 ]; then
+            echo "::error::npm audit failed to produce a vulnerability result (exit $audit_status)"
+            exit "$audit_status"
+          fi
+          node scripts/verify-dependency-audit.mjs \
+            "$RUNNER_TEMP/functions-npm-audit.json" \
+            ../.github/dependency-audit-exceptions.json \
+            ../.peanut/platform.yml
 
   release-readiness:
     name: Release readiness
