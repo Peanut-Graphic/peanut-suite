@@ -3,6 +3,7 @@
 ### Testing
 
 - Corrected the standalone WordPress mocks and assertions to match real `absint`, `esc_attr`, and `sanitize_email` semantics, while adding an adversarial check that the plugin security service still rejects invalid email syntax.
+- The 47 legacy WordPress-mock tests are now blocking in both the PHP 8.3 and declared-minimum PHP 8.1 CI lanes; the standalone bootstrap mirrors the API namespace and table-prefix constants that production defines, removing the final two skips.
 
 ## 4.2.9
 

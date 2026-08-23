@@ -40,6 +40,15 @@ if (file_exists($_tests_dir . '/includes/functions.php')) {
     // Standalone testing without WordPress - load mocks.
     require_once __DIR__ . '/mocks/wordpress-mocks.php';
 
+    // Mirror the public plugin constants that are normally defined by the main
+    // plugin file before its database and REST classes are loaded.
+    if (!defined('PEANUT_API_NAMESPACE')) {
+        define('PEANUT_API_NAMESPACE', 'peanut/v1');
+    }
+    if (!defined('PEANUT_TABLE_PREFIX')) {
+        define('PEANUT_TABLE_PREFIX', 'peanut_');
+    }
+
     // Load plugin files that can be tested standalone.
     // Note: Most tests will require WP test environment.
 }

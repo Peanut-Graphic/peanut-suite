@@ -7,6 +7,7 @@
 #   - Net 2 (security): composer audit + npm audit — BLOCKING (ratcheted 2026-08-18)
 #   - Net 6 (property): PHP pure-function property tests + JS fast-check property tests
 #   - Regression guards (self-contained pure PHP)
+#   - Legacy WordPress-mock unit tests (blocking on current + minimum PHP)
 name: tests
 
 on:
@@ -66,6 +67,9 @@ jobs:
       - name: Regression guards
         run: vendor/bin/phpunit --testsuite=Regression
 
+      - name: Legacy WordPress-mock unit tests
+        run: vendor/bin/phpunit --testsuite=Legacy
+
   php-minimum-tests:
     runs-on: ubuntu-latest
     steps:
@@ -89,6 +93,9 @@ jobs:
 
       - name: Regression guards
         run: vendor/bin/phpunit --testsuite=Regression
+
+      - name: Legacy WordPress-mock unit tests
+        run: vendor/bin/phpunit --testsuite=Legacy
 
   js-security-and-property:
     runs-on: ubuntu-latest
