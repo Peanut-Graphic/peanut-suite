@@ -1,5 +1,7 @@
 # Peanut Suite - Firebase Backend
 
+> Read [Firebase Ownership and End State](docs/FIREBASE-OWNERSHIP.md) before using any Firebase CLI command. Source review and local tests are safe; authentication, deployment, data access, IAM, billing, credential, and recovery operations require fresh project-specific approval.
+
 Shared Firebase backend for the Peanut Suite of comedy industry tools:
 
 - **Notebook** (iOS) - Personal material management for comedians

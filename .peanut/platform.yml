@@ -118,13 +118,13 @@ exceptions:
     review_date: "2026-11-13"
     status: accepted
   - id: PAR-310
-    concern: Firebase backend ownership and end-state are not independently verified
-    reason: The public Cloud Functions API is live and healthy, but the repository contains no CI deploy workflow, the default Firebase Hosting site is not deployed, and invalid local Firebase authentication prevents read-only verification of the project runtime, Firestore, Storage, deployed revision, or control-plane ownership.
-    risk: Backend changes can bypass CI gating, exact-revision assertions, backup checks, health verification, and a documented rollback path.
+    concern: Live Firebase control-plane and recovery evidence remain unverified behind a documented ownership boundary
+    reason: docs/FIREBASE-OWNERSHIP.md now makes `peanut-suite` the canonical shared backend, assigns Functions/Firestore/Storage/Auth/data/deployment ownership, separates Firebase promotion from WordPress release, and defines the gated exact-revision end state. The public Functions API is healthy, but no CI deploy workflow proves the live runtime, deployed revision, data safeguards, rollback, or whether Hosting is intentionally absent.
+    risk: Manual backend changes can still bypass exact-revision, backup, health, concurrency, and rollback controls until the target deployment contract and live inventory are approved.
     owner: Peanut Graphic
-    verification: Confirm the live Firebase project, consumers, deployment owner, deployed revision, data safeguards, health surface, and intended long-term ownership.
+    verification: Through an approved read-only control-plane session, confirm project administrators, consumers, Functions runtimes/revisions, Firestore/Storage retention and recovery, Auth ownership, and the Hosting decision; then implement the documented gated promotion contract.
     review_date: "2026-11-14"
-    status: proposed
+    status: accepted
   - id: PAR-404
     concern: Repository-local packaging path duplicates the central publisher
     reason: package.json, scripts/package.sh, and scripts/package.js can build a plugin ZIP independently of the canonical signed publisher.
@@ -162,6 +162,7 @@ verification:
     - .firebaserc
     - firebase.json
     - README.md
+    - docs/FIREBASE-OWNERSHIP.md
     - scripts/package.sh
     - scripts/package.js
     - .github/workflows/tests.yml
@@ -183,7 +184,7 @@ verification:
   outstanding:
     - Inventory supported distributed client-host PHP, WordPress, database, scheduler, and ML contracts without collecting customer data.
     - Reconcile why many declared central module cron hooks are not registered; do not execute hooks or retrain models without approval.
-    - Restore an approved read-only Firebase control-plane session, then verify the live Node runtime, Firestore, Storage, deployment owner, deployed revision, data safeguards, and rollback controls in PAR-310; do not deploy or change account configuration as part of inventory.
+    - Use the PAR-310 ownership/end-state contract during an approved read-only control-plane session to verify the live Node runtime, Firestore, Storage, Auth, deployment owner/revision, data safeguards, Hosting decision, and rollback controls; do not deploy or change account configuration as part of inventory.
     - Decide whether the absent default Firebase Hosting site is intentional; the live API currently answers only at its direct Cloud Functions endpoint.
     - Align PHP and Node declarations with fleet baselines in PAR-207 and PAR-205.
     - Retire or wrap the repository-local packager in PAR-404.
