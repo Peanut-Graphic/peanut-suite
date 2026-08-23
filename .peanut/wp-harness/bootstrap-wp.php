@@ -43,7 +43,14 @@ if (! defined('PLUGIN_MAIN_FILE')) {
 }
 
 tests_add_filter('muplugins_loaded', static function () {
+    require_once __DIR__ . '/lifecycle-hook-guard.php';
+    Peanut_Lifecycle_Hook_Guard::instrument(['plugins_loaded', 'init']);
+}, -1000);
+
+tests_add_filter('muplugins_loaded', static function () {
     require PLUGIN_MAIN_FILE;
 });
 
 require "{$_tests_dir}/includes/bootstrap.php";
+
+Peanut_Lifecycle_Hook_Guard::assert_clean();
