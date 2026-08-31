@@ -41,23 +41,42 @@ class SEO_Module {
     }
 
     /**
+     * Option name holding the DataForSEO API key.
+     *
+     * This is the option every consumer reads (SEO_Module::fetch_ranking()), so
+     * it is the option the settings form must write. Do not introduce a second
+     * storage shape for the same secret.
+     */
+    public const OPTION_DATAFORSEO_KEY = 'peanut_dataforseo_api_key';
+
+    /**
+     * Option name holding the Google PageSpeed API key.
+     *
+     * Read by SEO_Auditor::check_page_speed() and by the Monitor module's
+     * Core Web Vitals check (Monitor_WebVitals::check_site()).
+     */
+    public const OPTION_PAGESPEED_KEY = 'peanut_pagespeed_api_key';
+
+    /**
      * AJAX: Save SEO settings
+     *
+     * Writes the two API keys to the flat options the consumers read. Posted
+     * field names (dataforseo_key / pagespeed_key) and the nonce action
+     * ('peanut_seo') must stay in step with core/admin/views/seo.php.
      */
     public function ajax_save_settings(): void {
         check_ajax_referer('peanut_seo', 'nonce');
 
         if (!current_user_can('manage_options')) {
-            wp_send_json_error('Unauthorized');
+            wp_send_json_error(['message' => 'You need the manage_options capability to change SEO API keys.'], 403);
         }
 
-        $settings = [
-            'dataforseo_login' => sanitize_text_field($_POST['dataforseo_login'] ?? ''),
-            'dataforseo_password' => sanitize_text_field($_POST['dataforseo_password'] ?? ''),
-            'default_location' => sanitize_text_field($_POST['default_location'] ?? 'United States'),
-            'default_language' => sanitize_text_field($_POST['default_language'] ?? 'en'),
-        ];
+        $dataforseo_key = sanitize_text_field(wp_unslash($_POST['dataforseo_key'] ?? ''));
+        $pagespeed_key = sanitize_text_field(wp_unslash($_POST['pagespeed_key'] ?? ''));
 
-        update_option('peanut_seo_settings', $settings);
+        update_option(self::OPTION_DATAFORSEO_KEY, $dataforseo_key);
+        update_option(self::OPTION_PAGESPEED_KEY, $pagespeed_key);
+
         wp_send_json_success(['message' => 'Settings saved']);
     }
 
@@ -317,7 +336,7 @@ class SEO_Module {
         // Option 3: Use SEMrush API
         // Option 4: Custom scraper (not recommended - ToS issues)
 
-        $api_key = get_option('peanut_dataforseo_api_key', '');
+        $api_key = get_option(self::OPTION_DATAFORSEO_KEY, '');
 
         if (!empty($api_key)) {
             return $this->fetch_from_dataforseo($keyword, $target_url, $api_key);
@@ -815,7 +834,7 @@ class SEO_Auditor {
 
     private function check_page_speed(string $url): void {
         // Use PageSpeed API if available
-        $api_key = get_option('peanut_pagespeed_api_key', '');
+        $api_key = get_option(SEO_Module::OPTION_PAGESPEED_KEY, '');
 
         if (empty($api_key)) {
             $this->add_issue('performance', 'info', 'PageSpeed Not Checked',
