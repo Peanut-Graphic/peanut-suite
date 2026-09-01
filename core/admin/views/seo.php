@@ -208,6 +208,7 @@ $active_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'keyword
         <p class="description">Configure API keys for keyword tracking and PageSpeed analysis.</p>
 
         <form id="seo-settings-form">
+            <?php wp_nonce_field('peanut_seo', 'peanut_nonce'); ?>
             <table class="form-table">
                 <tr>
                     <th scope="row">
@@ -237,8 +238,12 @@ $active_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'keyword
             </table>
 
             <p class="submit">
-                <button type="submit" class="button button-primary">Save Settings</button>
+                <button type="submit" class="button button-primary" id="seo-settings-save">Save Settings</button>
             </p>
+
+            <div id="seo-settings-notice" class="notice" style="display: none;" role="status" aria-live="polite">
+                <p></p>
+            </div>
         </form>
     </div>
 
@@ -665,21 +670,63 @@ jQuery(document).ready(function($) {
     }
 
     // Save settings
+    function showSettingsNotice(type, message) {
+        const $notice = $('#seo-settings-notice');
+        $notice
+            .removeClass('notice-success notice-error')
+            .addClass(type === 'success' ? 'notice-success' : 'notice-error')
+            .show()
+            .find('p').text(message);
+    }
+
     $('#seo-settings-form').on('submit', function(e) {
         e.preventDefault();
 
+        const $button = $('#seo-settings-save');
+        $button.prop('disabled', true).text('Saving...');
+
         $.ajax({
-            url: '<?php echo admin_url('admin-ajax.php'); ?>',
+            url: '<?php echo esc_url(admin_url('admin-ajax.php')); ?>',
             method: 'POST',
+            dataType: 'json',
             data: {
                 action: 'peanut_save_seo_settings',
-                nonce: '<?php echo wp_create_nonce('peanut_seo_settings'); ?>',
+                nonce: $('[name="peanut_nonce"]').val(),
                 dataforseo_key: $('#dataforseo_key').val(),
                 pagespeed_key: $('#pagespeed_key').val()
-            },
-            success: function() {
-                alert('Settings saved!');
             }
+        }).done(function(response) {
+            // wp_send_json_success() sets success:true. Anything else is a
+            // failure the server chose to report — show what it said.
+            if (response && response.success) {
+                showSettingsNotice('success', 'API keys saved. Keyword rank checks and PageSpeed scores will use them from the next run.');
+                return;
+            }
+
+            let detail = '';
+            if (response && response.data) {
+                detail = typeof response.data === 'string' ? response.data : (response.data.message || '');
+            }
+            showSettingsNotice('error', detail
+                ? 'Not saved: ' + detail
+                : 'Not saved. The server rejected the request without a reason. Reload this page and try again; if it repeats, check the PHP error log for peanut_save_seo_settings.');
+        }).fail(function(xhr) {
+            const status = xhr.status;
+            let message;
+
+            if (status === 0) {
+                message = 'Not saved: the browser could not reach admin-ajax.php. Check your connection, and whether a security plugin or firewall is blocking admin-ajax.php.';
+            } else if (status === 403) {
+                message = 'Not saved: your security token expired (HTTP 403). Reload this page and save again.';
+            } else if (status === 404) {
+                message = 'Not saved: admin-ajax.php returned 404. The Peanut Suite SEO module is not loaded — reactivate the plugin.';
+            } else {
+                message = 'Not saved: the server returned HTTP ' + status + ' (' + (xhr.statusText || 'error') + '). Check the PHP error log for the peanut_save_seo_settings handler.';
+            }
+
+            showSettingsNotice('error', message);
+        }).always(function() {
+            $button.prop('disabled', false).text('Save Settings');
         });
     });
 

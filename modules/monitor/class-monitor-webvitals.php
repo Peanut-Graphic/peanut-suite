@@ -53,6 +53,10 @@ class Monitor_WebVitals {
      * Check Core Web Vitals for a site
      */
     public function check_site(object $site): array {
+        // Written by the SEO settings screen
+        // (PeanutSuite\SEO\SEO_Module::OPTION_PAGESPEED_KEY). Kept as a literal
+        // so Monitor does not depend on the SEO module being loaded; the two are
+        // pinned together by tests/Regression/SeoSettingsRoundTripTest.php.
         $api_key = get_option('peanut_pagespeed_api_key', '');
 
         // Try PageSpeed API if key is available
