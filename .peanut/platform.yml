@@ -143,7 +143,7 @@ exceptions:
     status: proposed
   - id: ADV-001
     concern: One open Dependabot MEDIUM advisory (uuid < 11.1.1) in functions/ cannot be closed by any change here
-    reason: GHSA-w5hq-g745-h8pq requires uuid >= 11.1.1; the functions/ tree carries uuid 9.0.1/10.0.0 pinned internally by gaxios and teeny-request (Google Cloud transitives declaring ^9). The real fix was attempted 2026-08-21 -- root uuid ^11.1.1 plus firebase-admin ^14, which drops admin's own uuid entirely -- and the alert STILL does not clear because those two libraries pin ^9 regardless. Forcing an override would run uuid 11 inside libraries never tested against it, in a package with no test suite.
+    reason: GHSA-w5hq-g745-h8pq requires uuid >= 11.1.1; the functions/ tree carries uuid 9.0.1/10.0.0 pinned internally by gaxios and teeny-request (Google Cloud transitives declaring ^9). The real fix was attempted 2026-08-21 -- root uuid ^11.1.1 plus firebase-admin ^14, which drops admin's own uuid entirely -- and the alert STILL does not clear because those two libraries pin ^9 regardless. The 2026-09-02 review reconfirmed the same declared ranges. Forcing an override would run uuid 11 inside libraries never tested against it.
     risk: Runtime scope but low -- uuid v4 generation semantics are unchanged across the majors in question.
     owner: Peanut Graphic
     verification: On review, check gaxios and teeny-request for releases accepting uuid >= 11 (npm view <pkg> dependencies.uuid), then take firebase-admin ^14 in the same change. Do not re-attempt the firebase-admin bump alone -- it is proven insufficient.
@@ -151,8 +151,8 @@ exceptions:
     status: accepted
 verification:
   status: live-verified
-  audited_commit: 9132d7ddce4e191e88278026daac66da40b2cd36
-  last_reviewed: "2026-08-23"
+  audited_commit: f17afdd69f3ae98a8515bb713409971f456ef50e
+  last_reviewed: "2026-09-02"
   sources:
     - peanut-suite.php
     - composer.json

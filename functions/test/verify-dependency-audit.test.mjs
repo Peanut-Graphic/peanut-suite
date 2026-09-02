@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 
 import { verifyAudit } from '../scripts/verify-dependency-audit.mjs';
 
@@ -51,4 +52,14 @@ test('rejects a manifest exception that is not accepted', () => {
 test('rejects a stale exception after the advisory clears', () => {
   const clean = { auditReportVersion: 2, vulnerabilities: {}, metadata: { vulnerabilities: { low: 0, moderate: 0, high: 0, critical: 0 } } };
   assert.throws(() => verifyAudit(clean, policy, manifest, NOW), /no longer matches/);
+});
+
+test('keeps qs above both audited security floors', () => {
+  const packageJson = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url)));
+  const packageLock = JSON.parse(fs.readFileSync(new URL('../package-lock.json', import.meta.url)));
+
+  assert.equal(packageJson.overrides.qs, '^6.16.0');
+  assert.ok(
+    packageLock.packages['node_modules/qs'].version.localeCompare('6.16.0', undefined, { numeric: true }) >= 0,
+  );
 });

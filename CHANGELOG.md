@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Security
+
+- Constrain the Firebase Functions `qs` transitive to 6.16.0 or newer so both current parser/denial-of-service advisories remain closed, with a lock-floor regression.
+
 ### Testing
 
 - The maintained PHP property, regression, and WordPress-mock suites now emit one Clover report and enforce an honest 0.80% statement-coverage floor across the existing broad `core/` + `modules/` denominator. The gate fails closed on missing, malformed, empty, or below-floor reports and does not narrow the source scope to make the baseline look larger.
