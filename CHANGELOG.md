@@ -3,6 +3,7 @@
 ### Security
 
 - Constrain the Firebase Functions `qs` transitive to 6.16.0 or newer so both current parser/denial-of-service advisories remain closed, with a lock-floor regression.
+- Reclassify the remaining Functions `uuid` advisory as a coupled Node 22 and dependency-major migration after current upstream packages removed the old `uuid` edge but raised their runtime floor.
 
 ### Testing
 
