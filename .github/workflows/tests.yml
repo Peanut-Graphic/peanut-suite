@@ -4,7 +4,7 @@
 # (wp-contract.yml) against a real WordPress + MySQL. The jobs here are the ones that
 # run WITHOUT a WP boot, plus the blocking CLASS-007 static foot-gun gate:
 #   - static-footguns (CLASS-007): semgrep over modules/ + core/ (BLOCKING)
-#   - Net 2 (security): composer audit + npm audit — BLOCKING (ratcheted 2026-08-18)
+#   - Net 2 (security): blocking, bounded Composer + npm audits
 #   - Net 6 (property): PHP pure-function property tests + JS fast-check property tests
 #   - Regression guards (self-contained pure PHP)
 #   - Legacy WordPress-mock unit tests (blocking on current + minimum PHP)
@@ -57,9 +57,14 @@ jobs:
       - name: Verify declared PHP support
         run: php scripts/verify-php-runtime.php
 
-      # Net 2 — dependency audit. Blocking: the tree is clean and stays clean.
-      - name: Dependency audit (composer)
-        run: composer audit
+      # Net 2 — dependency audit. Complete findings remain terminal; only a
+      # missing transport result may retry within the bounded wrapper.
+      - name: Verify Composer audit transport contract
+        run: |
+          bash scripts/tests/composer-audit-transport.test.sh
+          bash scripts/tests/composer-npm-audit-workflow.test.sh
+      - name: Dependency audit (composer, blocking)
+        run: bash scripts/run-dependency-audit-transport.sh composer
 
       - name: Verify PHP coverage gate contract
         run: bash scripts/tests/php-coverage-gate.test.sh
@@ -138,8 +143,10 @@ jobs:
       # gate lets through with exit 0 — verified by execution against the
       # vulnerable pin. The tree is clean at moderate today, so this holds the
       # line rather than merely looking like it does.
-      - name: Dependency audit (npm)
-        run: npm audit --audit-level=moderate
+      - name: Verify npm audit transport contract
+        run: bash ../scripts/tests/npm-audit-transport.test.sh
+      - name: Dependency audit (npm, blocking)
+        run: bash ../scripts/run-dependency-audit-transport.sh npm
 
       # Net 6 — fast-check property tests (+ the rest of the vitest suite).
       - name: Vitest (property + unit + a11y)
@@ -170,11 +177,12 @@ jobs:
       - name: Audit production dependencies at the fleet moderate floor
         run: |
           set +e
-          npm audit --omit=dev --audit-level=moderate --json > "$RUNNER_TEMP/functions-npm-audit.json"
+          PEANUT_AUDIT_RESULT_FILE="$RUNNER_TEMP/functions-npm-audit.json" \
+            bash ../scripts/run-dependency-audit-transport.sh npm
           audit_status=$?
           set -e
           if [ "$audit_status" -gt 1 ]; then
-            echo "::error::npm audit failed to produce a vulnerability result (exit $audit_status)"
+            echo "::error::npm audit failed to produce a validated vulnerability result (exit $audit_status)"
             exit "$audit_status"
           fi
           node scripts/verify-dependency-audit.mjs \
