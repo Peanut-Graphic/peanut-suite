@@ -1,5 +1,7 @@
 # Peanut Suite - Firebase Backend
 
+> **Dependency updates:** `renovate.json` extends `local>peanutgraphic/renovate-config`, but Renovate is not installed on the Peanut-Graphic GitHub org, so it has never opened a PR here. `.github/dependabot.yml` provides automated dependency PRs instead — see that file to add/adjust ecosystems.
+
 > Read [Firebase Ownership and End State](docs/FIREBASE-OWNERSHIP.md) before using any Firebase CLI command. Source review and local tests are safe; authentication, deployment, data access, IAM, billing, credential, and recovery operations require fresh project-specific approval.
 
 Shared Firebase backend for the Peanut Suite of comedy industry tools:
