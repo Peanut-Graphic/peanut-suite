@@ -143,11 +143,11 @@ exceptions:
     status: proposed
   - id: ADV-001
     concern: One open Dependabot MEDIUM advisory (uuid < 11.1.1) in functions/ now requires a coupled Node/runtime and dependency-major migration
-    reason: GHSA-w5hq-g745-h8pq requires uuid >= 11.1.1; the current functions/ tree carries uuid 9.0.1/10.0.0 through its root declaration and Google Cloud transitives. On 2026-09-02, latest firebase-admin 14.3.0, gaxios 8.0.0, and teeny-request 11.0.1 no longer declare uuid, but all require Node >=22 while functions/package.json still declares Node 20. Forcing uuid 11 into the current graph is unverified; closing the advisory now requires one reviewed Node 22 plus firebase-admin/root-uuid major migration with installed build and behavior proof.
+    reason: GHSA-w5hq-g745-h8pq requires uuid >= 11.1.1; the current functions/ tree carries uuid 9.0.1/10.0.0 through its root declaration and Google Cloud transitives. On 2026-09-02, latest firebase-admin 14.3.0, gaxios 8.0.0, and teeny-request 11.0.1 no longer declare uuid, but all require Node >=22 while functions/package.json still declares Node 20. Forcing uuid 11 into the current graph is unverified; closing the advisory now requires one reviewed Node 22 plus firebase-admin/root-uuid major migration with installed build and behavior proof. Re-verified 2026-09-11 -- firebase-admin is now 14.4.0 and still requires Node >= 22, while functions/package.json still declares Node 20. The coupled Node 22 + firebase-admin major migration remains the only route to closing this.
     risk: Runtime scope but low -- uuid v4 generation semantics are unchanged across the majors in question.
     owner: Peanut Graphic
     verification: In an approved installed verification lane, migrate the Functions runtime contract to Node 22 and test firebase-admin ^14 plus root uuid ^11 together; verify build, emulator/API behavior, current audit, and deployment compatibility before retiring this exception.
-    review_date: "2026-09-20"
+    review_date: "2026-10-11"
     status: accepted
 verification:
   status: live-verified
