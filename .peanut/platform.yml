@@ -143,11 +143,11 @@ exceptions:
     status: proposed
   - id: ADV-001
     concern: One open Dependabot MEDIUM advisory (uuid < 11.1.1) in functions/ now requires a coupled Node/runtime and dependency-major migration
-    reason: GHSA-w5hq-g745-h8pq requires uuid >= 11.1.1; the current functions/ tree carries uuid 9.0.1/10.0.0 through its root declaration and Google Cloud transitives. On 2026-09-02, latest firebase-admin 14.3.0, gaxios 8.0.0, and teeny-request 11.0.1 no longer declare uuid, but all require Node >=22 while functions/package.json still declares Node 20. Forcing uuid 11 into the current graph is unverified; closing the advisory now requires one reviewed Node 22 plus firebase-admin/root-uuid major migration with installed build and behavior proof.
-    risk: Runtime scope but low -- uuid v4 generation semantics are unchanged across the majors in question.
+    reason: GHSA-w5hq-g745-h8pq requires uuid >= 11.1.1; the current functions/ tree carries uuid 9.0.1/10.0.0 through its root declaration and Google Cloud transitives. Re-verified against the npm registry on 2026-09-18 and every premise still holds - latest firebase-admin is now 14.4.0 (2026-09-10), gaxios 8.1.0 (2026-09-16) and teeny-request 11.0.1, none of them declaring uuid, all three still engines.node >=22, while functions/package.json still declares node 20 and uuid ^9.0.0. The advisory has no backport - the 9.x and 10.x lines top out at 9.0.1 and 10.0.0, and first_patched_version is 11.1.1. Forcing uuid 11 into the current graph is unverified; closing the advisory now requires one reviewed Node 22 plus firebase-admin/root-uuid major migration with installed build and behavior proof.
+    risk: Runtime scope but low -- uuid v4 generation semantics are unchanged across the majors in question, and the defect itself is a missing buffer bounds check in v3/v5/v6 when a caller supplies buf. Every call site in functions/src (venue.ts, account.ts, booking.ts, performer.ts) imports v4 alone and passes no buffer, so this repository's own code cannot reach the vulnerable path; the exposure that remains is transitive.
     owner: Peanut Graphic
     verification: In an approved installed verification lane, migrate the Functions runtime contract to Node 22 and test firebase-admin ^14 plus root uuid ^11 together; verify build, emulator/API behavior, current audit, and deployment compatibility before retiring this exception.
-    review_date: "2026-09-20"
+    review_date: "2026-10-17"
     status: accepted
 verification:
   status: live-verified
