@@ -35,9 +35,10 @@ runtimes:
   - name: node
     baseline: "22"
     declarations:
-      - { scope: ci, source: .github/workflows/tests.yml, value: "20" }
-      - { scope: ci, source: .github/workflows/accessibility.yml, value: "20" }
-      - { scope: hosting, source: functions/package.json, value: "engines.node 20" }
+      - { scope: dependency, source: package.json, frontend/package.json, functions/package.json, and .nvmrc, value: "exact Node 20.20.0 and npm 10.8.2; no Node 22 runtime transition" }
+      - { scope: ci, source: .github/workflows/tests.yml, value: "exact Node 20.20.0 and npm 10.8.2 with fail-closed source/runtime verification" }
+      - { scope: ci, source: .github/workflows/accessibility.yml, value: "exact Node 20.20.0 and npm 10.8.2 with fail-closed source/runtime verification" }
+      - { scope: hosting, source: functions/package.json, value: "Firebase-supported engines.node 20 family; source/CI toolchain exact at Node 20.20.0/npm 10.8.2; live runtime remains unverified" }
     production_observation: { status: unverified }
   - name: wordpress
     baseline: WordPress 6.0+
@@ -103,10 +104,10 @@ distribution:
 exceptions:
   - id: PAR-207
     concern: The PHP minimum is reconciled, but Node runtime declarations remain below the fleet baseline
-    reason: The plugin header, README, Composer requirement and platform, lockfile, and required minimum CI now agree on PHP 8.1, alongside the current PHP 8.3 and real WordPress lanes. The central first-party installation runs PHP 8.5.9, while JavaScript CI and Firebase Functions remain on Node 20 instead of the fleet Node 22 baseline.
-    risk: The distributed PHP minimum is protected from regression, but JavaScript behavior can still differ from the fleet-supported runtime.
+    reason: The plugin header, README, Composer requirement and platform, lockfile, and required minimum CI agree on PHP 8.1, alongside the current PHP 8.3 and real WordPress lanes. Source, lock metadata, documentation, and JavaScript CI now pin the current Firebase-compatible Node 20.20.0/npm 10.8.2 contract exactly; the central first-party installation runs PHP 8.5.9, while Firebase Functions remain on Node 20 instead of the fleet Node 22 baseline.
+    risk: The distributed PHP minimum and Node 20 source contract are protected from regression, but Firebase Functions remain below the fleet-supported Node runtime until the coupled dependency migration is approved and proven.
     owner: Peanut Graphic
-    verification: Keep the PHP 8.1 declaration contract and required minimum lane green, then separately verify Firebase before any Node runtime change.
+    verification: Keep the PHP 8.1 and exact Node 20.20.0/npm 10.8.2 contracts green, then separately verify Firebase before any Node 22 runtime and dependency-major change.
     review_date: "2026-11-14"
     status: proposed
   - id: PAR-306

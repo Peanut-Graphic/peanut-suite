@@ -7,6 +7,7 @@
 
 ### Testing
 
+- Pinned every JavaScript package root and CI lane to the existing Firebase-compatible Node 20.20.0/npm 10.8.2 runtime with a fail-closed cross-file verifier; this does not authorize or perform the held Node 22 Firebase transition.
 - The maintained PHP property, regression, and WordPress-mock suites now emit one Clover report and enforce an honest 0.80% statement-coverage floor across the existing broad `core/` + `modules/` denominator. The gate fails closed on missing, malformed, empty, or below-floor reports and does not narrow the source scope to make the baseline look larger.
 - Corrected the standalone WordPress mocks and assertions to match real `absint`, `esc_attr`, and `sanitize_email` semantics, while adding an adversarial check that the plugin security service still rejects invalid email syntax.
 - The 47 legacy WordPress-mock tests are now blocking in both the PHP 8.3 and declared-minimum PHP 8.1 CI lanes; the standalone bootstrap mirrors the API namespace and table-prefix constants that production defines, removing the final two skips.

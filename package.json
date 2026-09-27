@@ -3,6 +3,11 @@
   "version": "4.2.1",
   "description": "Peanut Suite - Complete Marketing Toolkit for WordPress",
   "private": true,
+  "engines": {
+    "node": "20.20.0",
+    "npm": "10.8.2"
+  },
+  "packageManager": "npm@10.8.2",
   "scripts": {
     "dev": "cd frontend && npm run dev",
     "build": "cd frontend && npm run build",
@@ -10,7 +15,8 @@
     "install:frontend": "cd frontend && npm install",
     "clean": "rm -rf dist peanut-suite.zip",
     "package": "npm run build:production && bash scripts/package.sh",
-    "release": "npm run clean && npm run package"
+    "release": "npm run clean && npm run package",
+    "runtime:verify": "node scripts/verify-node-runtime-contract.cjs"
   },
   "keywords": [
     "wordpress",
