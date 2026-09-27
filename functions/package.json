@@ -15,8 +15,10 @@
     "test:audit-contract": "node --test test/verify-dependency-audit.test.mjs"
   },
   "engines": {
-    "node": "20"
+    "node": "20",
+    "npm": "10.8.2"
   },
+  "packageManager": "npm@10.8.2",
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.18.2",

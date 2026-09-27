@@ -72,7 +72,7 @@ peanut-suite/
 ## Setup
 
 ### Prerequisites
-- Node.js 18+
+- Node.js 20.20.0 with npm 10.8.2 (the current Firebase Functions contract; the Node 22 transition remains separately approval-bound)
 - Firebase CLI: `npm install -g firebase-tools`
 - Firebase project created at console.firebase.google.com
 
