@@ -35,7 +35,7 @@ runtimes:
   - name: node
     baseline: "22"
     declarations:
-      - { scope: dependency, source: package.json, frontend/package.json, functions/package.json, and .nvmrc, value: "exact Node 20.20.0 and npm 10.8.2; no Node 22 runtime transition" }
+      - { scope: dependency, source: "package.json, frontend/package.json, functions/package.json, and .nvmrc", value: "exact Node 20.20.0 and npm 10.8.2; no Node 22 runtime transition" }
       - { scope: ci, source: .github/workflows/tests.yml, value: "exact Node 20.20.0 and npm 10.8.2 with fail-closed source/runtime verification" }
       - { scope: ci, source: .github/workflows/accessibility.yml, value: "exact Node 20.20.0 and npm 10.8.2 with fail-closed source/runtime verification" }
       - { scope: hosting, source: functions/package.json, value: "Firebase-supported engines.node 20 family; source/CI toolchain exact at Node 20.20.0/npm 10.8.2; live runtime remains unverified" }
