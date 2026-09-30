@@ -32,6 +32,26 @@ class Peanut_Settings_Secrets {
     /** peanut_settings keys whose values are encrypted at rest. */
     public const KEYS = ['ga4_reports_client_secret'];
 
+    /**
+     * Third-party secrets that are never returned over REST (write-only), but
+     * are still read as plaintext by their integrations. Encrypting them at
+     * rest means moving each reader to get() first; until then they are at
+     * least never sent to a browser.
+     */
+    public const WRITE_ONLY_KEYS = [
+        'stripe_secret_key',
+        'stripe_webhook_secret',
+        'ga4_api_secret',
+        'mailchimp_api_key',
+        'convertkit_api_key',
+        'convertkit_api_secret',
+    ];
+
+    /** Every key REST treats as write-only (blank on output, blank input keeps). */
+    public static function write_only_keys(): array {
+        return array_merge(self::KEYS, self::WRITE_ONLY_KEYS);
+    }
+
     /** Suffix of the display-only "a secret is stored" flag in REST output. */
     public const SET_SUFFIX = '_set';
 
@@ -65,6 +85,11 @@ class Peanut_Settings_Secrets {
             $settings[$key . self::SET_SUFFIX] = self::get($settings, $key) !== '';
             $settings[$key] = '';
         }
+        foreach (self::WRITE_ONLY_KEYS as $key) {
+            $value = $settings[$key] ?? '';
+            $settings[$key . self::SET_SUFFIX] = is_string($value) && $value !== '';
+            $settings[$key] = '';
+        }
         return $settings;
     }
 
@@ -76,7 +101,7 @@ class Peanut_Settings_Secrets {
      * encrypted, which also upgrades a legacy plaintext value on any save.
      */
     public static function prepare_update(array $submitted, array $current): array {
-        foreach (self::KEYS as $key) {
+        foreach (self::write_only_keys() as $key) {
             unset($submitted[$key . self::SET_SUFFIX]);
             if (array_key_exists($key, $submitted)
                 && (!is_string($submitted[$key]) || trim($submitted[$key]) === '')) {
