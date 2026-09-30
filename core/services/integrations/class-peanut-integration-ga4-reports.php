@@ -42,9 +42,11 @@ class Peanut_Integration_GA4_Reports {
      * Constructor
      */
     public function __construct() {
-        $settings = get_option('peanut_settings', []);
+        $settings = (array) get_option('peanut_settings', []);
         $this->client_id = $settings['ga4_reports_client_id'] ?? '';
-        $this->client_secret = $settings['ga4_reports_client_secret'] ?? '';
+        // Stored encrypted; '' when unset or undecryptable (= not configured),
+        // so ciphertext is never sent to Google.
+        $this->client_secret = Peanut_Settings_Secrets::get($settings, 'ga4_reports_client_secret');
         $this->redirect_uri = admin_url('admin.php?page=peanut-settings&ga4_reports_callback=1');
     }
 
@@ -91,6 +93,13 @@ class Peanut_Integration_GA4_Reports {
             ];
         }
         delete_transient('peanut_ga4_reports_oauth_state');
+
+        if (!$this->has_credentials()) {
+            return [
+                'success' => false,
+                'error' => __('GA4 Reports OAuth credentials are not configured', 'peanut-suite'),
+            ];
+        }
 
         $response = wp_remote_post(self::TOKEN_URL, [
             'body' => [
@@ -177,6 +186,10 @@ class Peanut_Integration_GA4_Reports {
      * Refresh access token
      */
     private function refresh_access_token(string $refresh_token): ?string {
+        if (!$this->has_credentials()) {
+            return null;
+        }
+
         $response = wp_remote_post(self::TOKEN_URL, [
             'body' => [
                 'client_id' => $this->client_id,

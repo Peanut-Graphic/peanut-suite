@@ -29,6 +29,7 @@ delete_option('peanut_license_key');
 delete_option('peanut_settings');
 delete_option('peanut_active_modules');
 delete_option('peanut_db_version');
+delete_option('peanut_settings_secrets_version');
 
 // Remove transients
 delete_transient('peanut_license_data');
