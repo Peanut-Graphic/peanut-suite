@@ -72,6 +72,9 @@ namespace {
             return in_array($cap, $GLOBALS['__peanut_test_caps'] ?? [], true);
         }
     }
+    if (!function_exists('get_current_user_id')) {
+        function get_current_user_id(): int { return (int) ($GLOBALS['__peanut_test_user_id'] ?? 0); }
+    }
     if (!function_exists('wp_next_scheduled')) {
         function wp_next_scheduled($hook, $args = []) { return 1; }
     }
@@ -164,6 +167,7 @@ namespace PeanutSuite\Tests\Regression {
             $GLOBALS['mock_transients'] = [];
             $GLOBALS['mock_http_calls'] = [];
             $GLOBALS['__peanut_test_caps'] = ['manage_options'];
+            $GLOBALS['__peanut_test_user_id'] = 1;
             unset($GLOBALS['mock_http_response']);
             $_POST = [];
             $_GET = [];
@@ -174,7 +178,7 @@ namespace PeanutSuite\Tests\Regression {
             $GLOBALS['mock_options'] = [];
             $GLOBALS['mock_transients'] = [];
             $GLOBALS['mock_http_calls'] = [];
-            unset($GLOBALS['mock_http_response'], $GLOBALS['__peanut_test_caps']);
+            unset($GLOBALS['mock_http_response'], $GLOBALS['__peanut_test_caps'], $GLOBALS['__peanut_test_user_id']);
             $_POST = [];
             $_GET = [];
             parent::tearDown();
@@ -201,7 +205,8 @@ namespace PeanutSuite\Tests\Regression {
                 'response' => ['code' => 200],
             ];
 
-            $this->assertTrue($this->module()->handle_oauth_callback('auth-code'));
+            parse_str((string) parse_url($this->module()->get_oauth_url(), PHP_URL_QUERY), $query);
+            $this->assertTrue($this->module()->handle_oauth_callback('auth-code', (string) $query['state']));
 
             $this->assertSame(self::SECRET, $GLOBALS['mock_http_calls'][0]['args']['body']['client_secret']);
             $stored = get_option('peanut_ga_credentials');
@@ -414,7 +419,7 @@ namespace PeanutSuite\Tests\Regression {
 
             $module = $this->module();
             $this->assertSame('', $module->get_oauth_url());
-            $this->assertFalse($module->handle_oauth_callback('auth-code'));
+            $this->assertFalse($module->process_oauth_callback(['code' => 'auth-code', 'state' => 'st']) === 'connected');
             $this->assertNull($this->accessToken(), 'An expired token must not be refreshed with an unreadable secret.');
 
             $this->assertSame([], $GLOBALS['mock_http_calls'], 'No request (and so no ciphertext) may reach Google.');

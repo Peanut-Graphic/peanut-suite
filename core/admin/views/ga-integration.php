@@ -19,17 +19,20 @@ foreach (Peanut_GA_Credentials::SECRET_FIELDS as $secret_field) {
     unset($credentials[$secret_field]);
 }
 
-// Handle OAuth callback
-if (isset($_GET['action']) && $_GET['action'] === 'oauth_callback' && isset($_GET['code'])) {
-    if (class_exists('PeanutSuite\GAIntegration\GA_Integration_Module')) {
-        $module = \PeanutSuite\GAIntegration\GA_Integration_Module::instance();
-        if ($module->handle_oauth_callback(sanitize_text_field($_GET['code']))) {
-            echo '<div class="notice notice-success"><p>' . esc_html__('Successfully connected to Google!', 'peanut-suite') . '</p></div>';
-            $is_connected = true;
-        } else {
-            echo '<div class="notice notice-error"><p>' . esc_html__('Failed to connect. Please try again.', 'peanut-suite') . '</p></div>';
-        }
-    }
+// OAuth callback result. The callback itself is handled on admin_init by
+// GA_Integration_Module::maybe_handle_oauth_callback(), which validates the
+// state and redirects here with only a status (never the code).
+// Only whitelisted keys below are ever used.
+$ga_oauth_status = isset($_GET['ga_oauth']) && is_string($_GET['ga_oauth']) ? $_GET['ga_oauth'] : '';
+$ga_oauth_messages = [
+    'connected' => ['success', __('Successfully connected to Google!', 'peanut-suite')],
+    'failed' => ['error', __('Failed to connect. Please try again.', 'peanut-suite')],
+    'invalid_state' => ['error', __('The Google connection request was invalid or expired. Please start the connection again.', 'peanut-suite')],
+    'forbidden' => ['error', __('You do not have permission to connect Google Analytics.', 'peanut-suite')],
+];
+if (isset($ga_oauth_messages[$ga_oauth_status])) {
+    [$ga_notice_type, $ga_notice_text] = $ga_oauth_messages[$ga_oauth_status];
+    echo '<div class="notice notice-' . esc_attr($ga_notice_type) . '"><p>' . esc_html($ga_notice_text) . '</p></div>';
 }
 
 // Get period
