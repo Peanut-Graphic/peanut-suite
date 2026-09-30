@@ -104,6 +104,15 @@ class Peanut_Account_Service {
             return self::prepare_account($account);
         }
 
+        // Only a site administrator gets a default account auto-created.
+        // Everyone else must be added to an existing account by a team admin:
+        // auto-creating an ACTIVE owned account for any logged-in user (a
+        // Subscriber hitting /accounts/current) let them self-grant
+        // peanut_access and the Suite app.
+        if (!user_can($user_id, 'manage_options')) {
+            return null;
+        }
+
         // Create a default account for the user
         $user = get_userdata($user_id);
         if (!$user) {
@@ -160,6 +169,68 @@ class Peanut_Account_Service {
         ), ARRAY_A);
 
         return $account ? self::prepare_account($account) : null;
+    }
+
+    /**
+     * Whether a (non-administrator) user may use the Peanut Suite app as a
+     * team member, i.e. be granted the `peanut_access` capability.
+     *
+     * Requires a membership in an ACTIVE account that:
+     *  - someone else granted (invited_by set and not the user themselves),
+     *    so an account a user created for themselves never counts; and
+     *  - is anchored to a site administrator: its owner has manage_options,
+     *    or its owner was themselves invited by someone else (ownership
+     *    transferred to an invited member). This stops a user who owns a
+     *    self-created account (created before auto-creation was restricted)
+     *    from inviting a second account of their own into it.
+     */
+    public static function has_team_access(int $user_id): bool {
+        global $wpdb;
+        $table = Peanut_Database::accounts_table();
+        $members_table = Peanut_Database::account_members_table();
+
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT m.role, m.invited_by, a.owner_user_id, o.invited_by AS owner_invited_by
+             FROM $table a
+             JOIN $members_table m ON a.id = m.account_id
+             LEFT JOIN $members_table o ON o.account_id = a.id AND o.user_id = a.owner_user_id
+             WHERE m.user_id = %d AND a.status = %s",
+            $user_id,
+            self::STATUS_ACTIVE
+        ), ARRAY_A);
+
+        foreach ((array) $rows as $row) {
+            if (self::membership_grants_access($row, $user_id)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Pure rule behind has_team_access() for one membership row.
+     *
+     * @param array $row Keys: invited_by, owner_user_id, owner_invited_by.
+     */
+    public static function membership_grants_access(array $row, int $user_id): bool {
+        $invited_by = (int) ($row['invited_by'] ?? 0);
+        if ($invited_by <= 0 || $invited_by === $user_id) {
+            return false;
+        }
+
+        $owner_id = (int) ($row['owner_user_id'] ?? 0);
+        if ($owner_id <= 0) {
+            return false;
+        }
+
+        if (user_can($owner_id, 'manage_options')) {
+            return true;
+        }
+
+        $owner_invited_by = (int) ($row['owner_invited_by'] ?? 0);
+
+        return $owner_invited_by > 0 && $owner_invited_by !== $owner_id;
     }
 
     /**

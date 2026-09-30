@@ -49,7 +49,7 @@ class ML_Segmentation_Controller {
 			array(
 				'methods'             => 'GET',
 				'callback'            => array( $this, 'get_segments' ),
-				'permission_callback' => array( $this, 'check_permission' ),
+				'permission_callback' => array( $this, 'check_admin_permission' ),
 			)
 		);
 
@@ -60,7 +60,7 @@ class ML_Segmentation_Controller {
 			array(
 				'methods'             => 'GET',
 				'callback'            => array( $this, 'get_visitor_profile' ),
-				'permission_callback' => array( $this, 'check_permission' ),
+				'permission_callback' => array( $this, 'check_admin_permission' ),
 				'args'                => array(
 					'visitor_id' => array(
 						'required' => true,
@@ -77,7 +77,7 @@ class ML_Segmentation_Controller {
 			array(
 				'methods'             => 'GET',
 				'callback'            => array( $this, 'get_segmentation_stats' ),
-				'permission_callback' => array( $this, 'check_permission' ),
+				'permission_callback' => array( $this, 'check_admin_permission' ),
 			)
 		);
 
@@ -232,6 +232,8 @@ class ML_Segmentation_Controller {
 	 * @return bool
 	 */
 	public function check_permission(): bool {
+		// Only the service-health route uses this gate. Scored / profiled
+		// visitor and contact data requires check_admin_permission().
 		return current_user_can( 'read' );
 	}
 

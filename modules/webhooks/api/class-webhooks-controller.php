@@ -24,11 +24,15 @@ class Webhooks_Controller extends Peanut_REST_Controller {
             'permission_callback' => '__return_true', // Public endpoint
         ]);
 
+        // Admin endpoints below expose every stored inbound webhook site-wide
+        // (payload, sender IP, signature) and can re-fire peanut_webhook_*
+        // actions, so they require manage_options, not just login + nonce.
+
         // Admin endpoint: List webhooks
         register_rest_route($this->namespace, '/' . $this->rest_base, [
             'methods' => WP_REST_Server::READABLE,
             'callback' => [$this, 'get_items'],
-            'permission_callback' => [$this, 'permission_callback'],
+            'permission_callback' => [$this, 'admin_permission_callback'],
             'args' => $this->get_collection_params(),
         ]);
 
@@ -36,28 +40,28 @@ class Webhooks_Controller extends Peanut_REST_Controller {
         register_rest_route($this->namespace, '/' . $this->rest_base . '/(?P<id>\d+)', [
             'methods' => WP_REST_Server::READABLE,
             'callback' => [$this, 'get_item'],
-            'permission_callback' => [$this, 'permission_callback'],
+            'permission_callback' => [$this, 'admin_permission_callback'],
         ]);
 
         // Admin endpoint: Reprocess webhook
         register_rest_route($this->namespace, '/' . $this->rest_base . '/(?P<id>\d+)/reprocess', [
             'methods' => WP_REST_Server::CREATABLE,
             'callback' => [$this, 'reprocess_webhook'],
-            'permission_callback' => [$this, 'permission_callback'],
+            'permission_callback' => [$this, 'admin_permission_callback'],
         ]);
 
         // Admin endpoint: Get statistics
         register_rest_route($this->namespace, '/' . $this->rest_base . '/stats', [
             'methods' => WP_REST_Server::READABLE,
             'callback' => [$this, 'get_stats'],
-            'permission_callback' => [$this, 'permission_callback'],
+            'permission_callback' => [$this, 'admin_permission_callback'],
         ]);
 
         // Admin endpoint: Get filter options (sources, events)
         register_rest_route($this->namespace, '/' . $this->rest_base . '/filters', [
             'methods' => WP_REST_Server::READABLE,
             'callback' => [$this, 'get_filters'],
-            'permission_callback' => [$this, 'permission_callback'],
+            'permission_callback' => [$this, 'admin_permission_callback'],
         ]);
 
         // Admin endpoint: Bulk delete
@@ -97,14 +101,22 @@ class Webhooks_Controller extends Peanut_REST_Controller {
         $source = Webhooks_Signature::get_source_from_request($payload);
         $event = sanitize_text_field($payload['event'] ?? 'unknown');
 
-        // Verify signature if secret is configured
+        // Verify the signature whenever a secret is configured for this source.
+        // A missing signature header is a failure, not a skip: previously the
+        // check only ran when BOTH a secret and a header were present, so an
+        // attacker bypassed it by omitting the header.
+        //
+        // Sources with NO secret configured are still accepted unsigned (the
+        // pre-existing behavior; unconfigured sites keep working). Configure a
+        // per-source secret in the peanut_webhook_secrets option to require
+        // signatures for that source.
         $signature = Webhooks_Signature::get_signature_from_headers();
         $secret = Webhooks_Signature::get_secret($source);
 
-        if (!empty($secret) && !empty($signature)) {
-            if (!Webhooks_Signature::verify($raw_body, $signature, $source)) {
+        if ($secret !== '') {
+            if (empty($signature) || !Webhooks_Signature::verify($raw_body, (string) $signature, $source)) {
                 return $this->error(
-                    __('Invalid webhook signature.', 'peanut-suite'),
+                    __('Invalid or missing webhook signature.', 'peanut-suite'),
                     'invalid_signature',
                     401
                 );

@@ -71,27 +71,45 @@ class FormFlow_Controller {
     }
 
     /**
+     * Option that re-enables the legacy unsigned loopback path.
+     *
+     * Only consulted when NO webhook secret is configured. Off by default.
+     */
+    public const ALLOW_UNSIGNED_LOOPBACK_OPTION = 'peanut_formflow_allow_unsigned_loopback';
+
+    /**
      * Verify webhook request from FormFlow
+     *
+     * FormFlow Lite's Peanut Suite preset (PeanutWebhookPreset::create())
+     * generates a secret, stores it in `fffl_peanut_webhook_secret` for us, and
+     * signs every delivery with a bare-hex HMAC-SHA256 of the raw JSON body in
+     * `X-FFFL-Signature`. So:
+     *
+     *  - Secret configured: a valid X-FFFL-Signature is REQUIRED. Missing -> 401,
+     *    wrong -> 403. Nothing else (source header, Referer, IP) is trusted.
+     *  - No secret configured: rejected (401), unless the site explicitly opts
+     *    in via the `peanut_formflow_allow_unsigned_loopback` option, in which
+     *    case only a loopback / same-address request is accepted. The Referer
+     *    header is never trusted: any client can send it.
      *
      * @param WP_REST_Request $request Request object
      * @return bool|WP_Error True if valid, error otherwise
      */
     public function verify_request(WP_REST_Request $request): bool|WP_Error {
-        // Check for signature header
-        $signature = $request->get_header('X-FFFL-Signature');
-        $source = $request->get_header('X-FFFL-Source');
+        $secret = (string) FormFlow_Module::get_webhook_secret();
 
-        // Allow internal requests from same site
-        if ($source === 'formflow-lite' && $this->is_internal_request()) {
-            return true;
-        }
+        if ($secret !== '') {
+            $signature = (string) $request->get_header('X-FFFL-Signature');
 
-        // Verify signature if secret is configured
-        $secret = FormFlow_Module::get_webhook_secret();
+            if ($signature === '') {
+                return new WP_Error(
+                    'missing_signature',
+                    'Webhook signature required',
+                    ['status' => 401]
+                );
+            }
 
-        if ($secret && $signature) {
-            $body = $request->get_body();
-            $expected = hash_hmac('sha256', $body, $secret);
+            $expected = hash_hmac('sha256', $request->get_body(), $secret);
 
             if (!hash_equals($expected, $signature)) {
                 return new WP_Error(
@@ -104,8 +122,7 @@ class FormFlow_Controller {
             return true;
         }
 
-        // If no secret configured, allow from localhost/same origin
-        if ($this->is_internal_request()) {
+        if (get_option(self::ALLOW_UNSIGNED_LOOPBACK_OPTION, false) && $this->is_loopback_request()) {
             return true;
         }
 
@@ -117,36 +134,25 @@ class FormFlow_Controller {
     }
 
     /**
-     * Check if request is from internal/same site
+     * Whether the TCP peer is this server (loopback or the server's own
+     * address). Only used behind the explicit unsigned opt-in: behind a
+     * reverse proxy every request can look local, which is why it is opt-in.
      *
      * @return bool
      */
-    private function is_internal_request(): bool {
-        $remote_ip = $_SERVER['REMOTE_ADDR'] ?? '';
-        $server_ip = $_SERVER['SERVER_ADDR'] ?? '';
+    private function is_loopback_request(): bool {
+        $remote_ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+        $server_ip = (string) ($_SERVER['SERVER_ADDR'] ?? '');
 
-        // Same IP
-        if ($remote_ip === $server_ip) {
-            return true;
+        if ($remote_ip === '') {
+            return false;
         }
 
-        // Localhost
         if (in_array($remote_ip, ['127.0.0.1', '::1'], true)) {
             return true;
         }
 
-        // Check referer is same site
-        $referer = $_SERVER['HTTP_REFERER'] ?? '';
-        if ($referer) {
-            $site_host = parse_url(home_url(), PHP_URL_HOST);
-            $referer_host = parse_url($referer, PHP_URL_HOST);
-
-            if ($site_host === $referer_host) {
-                return true;
-            }
-        }
-
-        return false;
+        return $server_ip !== '' && $remote_ip === $server_ip;
     }
 
     /**
