@@ -342,13 +342,15 @@ class Monitor_Sites {
      */
     private function get_site_key(int $site_id): ?string {
         $encrypted = get_option("peanut_monitor_site_key_{$site_id}");
-        if (!$encrypted) {
+        if (!$encrypted || !is_string($encrypted)) {
             return null;
         }
 
         // Use Peanut encryption service
         if (class_exists('Peanut_Encryption')) {
-            return Peanut_Encryption::decrypt($encrypted);
+            $site_key = (new Peanut_Encryption())->decrypt($encrypted);
+            // '' means the value failed authentication or decryption: send no credential.
+            return $site_key !== '' ? $site_key : null;
         }
 
         return null;
@@ -359,7 +361,10 @@ class Monitor_Sites {
      */
     public function store_site_key(int $site_id, string $site_key): bool {
         if (class_exists('Peanut_Encryption')) {
-            $encrypted = Peanut_Encryption::encrypt($site_key);
+            $encrypted = (new Peanut_Encryption())->encrypt($site_key);
+            if ($encrypted === '') {
+                return false;
+            }
             return update_option("peanut_monitor_site_key_{$site_id}", $encrypted);
         }
 
