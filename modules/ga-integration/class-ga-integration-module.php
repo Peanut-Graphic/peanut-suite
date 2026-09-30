@@ -16,6 +16,16 @@ require_once dirname(__DIR__, 2) . '/core/services/class-peanut-ga-credentials.p
 
 class GA_Integration_Module {
 
+    /**
+     * OAuth `state` storage: a per-user transient holding the SHA-256 of the
+     * random state sent to Google. Short-lived and single-use.
+     */
+    public const OAUTH_STATE_TRANSIENT_PREFIX = 'peanut_ga_oauth_state_';
+    public const OAUTH_STATE_TTL = 10 * 60;
+
+    /** Admin page slug the OAuth redirect URI points at. */
+    public const ADMIN_PAGE = 'peanut-ga-integration';
+
     private static ?self $instance = null;
 
     public static function instance(): self {
@@ -46,6 +56,10 @@ class GA_Integration_Module {
         add_action('wp_ajax_peanut_test_ga_connection', [$this, 'ajax_test_connection']);
         add_action('wp_ajax_peanut_disconnect_ga', [$this, 'ajax_disconnect']);
         add_action('wp_ajax_peanut_get_ga_properties', [$this, 'ajax_get_properties']);
+
+        // OAuth redirect target: handled before any output, then redirected so
+        // the authorization code never stays in the URL or browser history.
+        add_action('admin_init', [$this, 'maybe_handle_oauth_callback']);
     }
 
     /**
@@ -527,7 +541,17 @@ class GA_Integration_Module {
     }
 
     /**
+     * Redirect URI registered with Google for this module.
+     */
+    private function get_redirect_uri(): string {
+        return admin_url('admin.php?page=' . self::ADMIN_PAGE . '&action=oauth_callback');
+    }
+
+    /**
      * Get OAuth URL
+     *
+     * Mints a fresh single-use `state` bound to the current user; returns ''
+     * when no consent flow can be started.
      */
     public function get_oauth_url(): string {
         $credentials = $this->get_credentials();
@@ -538,7 +562,11 @@ class GA_Integration_Module {
             return '';
         }
 
-        $redirect_uri = admin_url('admin.php?page=peanut-ga-integration&action=oauth_callback');
+        $state = $this->create_oauth_state();
+        if ($state === '') {
+            return '';
+        }
+
         $scopes = implode(' ', [
             'https://www.googleapis.com/auth/analytics.readonly',
             'https://www.googleapis.com/auth/webmasters.readonly',
@@ -546,20 +574,111 @@ class GA_Integration_Module {
 
         return 'https://accounts.google.com/o/oauth2/v2/auth?' . http_build_query([
             'client_id' => $credentials['client_id'],
-            'redirect_uri' => $redirect_uri,
+            'redirect_uri' => $this->get_redirect_uri(),
             'response_type' => 'code',
             'scope' => $scopes,
             'access_type' => 'offline',
             'prompt' => 'consent',
+            'state' => $state,
         ]);
     }
 
     /**
-     * Handle OAuth callback
+     * Generate a random OAuth state for the current user and remember its hash.
+     * A newer consent link replaces any earlier, unused one.
      */
-    public function handle_oauth_callback(string $code): bool {
+    private function create_oauth_state(): string {
+        $user_id = (int) get_current_user_id();
+        if ($user_id <= 0) {
+            return '';
+        }
+
+        $state = bin2hex(random_bytes(32));
+        set_transient(self::OAUTH_STATE_TRANSIENT_PREFIX . $user_id, hash('sha256', $state), self::OAUTH_STATE_TTL);
+
+        return $state;
+    }
+
+    /**
+     * Check a returned state against the current user's stored one. The stored
+     * state is deleted on every check, so each state can be used at most once.
+     */
+    private function consume_oauth_state(string $state): bool {
+        $user_id = (int) get_current_user_id();
+        if ($user_id <= 0) {
+            return false;
+        }
+
+        $key = self::OAUTH_STATE_TRANSIENT_PREFIX . $user_id;
+        $stored = get_transient($key);
+        delete_transient($key);
+
+        if (!is_string($stored) || $stored === '' || $state === '') {
+            return false;
+        }
+
+        return hash_equals($stored, hash('sha256', $state));
+    }
+
+    /**
+     * admin_init: complete the OAuth redirect, then send the admin back to the
+     * page without the code/state in the URL.
+     */
+    public function maybe_handle_oauth_callback(): void {
+        if (($_GET['page'] ?? '') !== self::ADMIN_PAGE || ($_GET['action'] ?? '') !== 'oauth_callback') {
+            return;
+        }
+
+        $status = $this->process_oauth_callback(wp_unslash($_GET));
+
+        wp_safe_redirect(admin_url('admin.php?page=' . self::ADMIN_PAGE . '&ga_oauth=' . rawurlencode($status)));
+        exit;
+    }
+
+    /**
+     * Validate and complete an OAuth callback request.
+     *
+     * @param array $query The callback's query parameters.
+     * @return string One of: connected, failed, invalid_state, forbidden.
+     */
+    public function process_oauth_callback(array $query): string {
+        if (!current_user_can('manage_options')) {
+            return 'forbidden';
+        }
+
+        $state = isset($query['state']) && is_string($query['state']) ? $query['state'] : '';
+        $code = isset($query['code']) && is_string($query['code']) ? sanitize_text_field($query['code']) : '';
+
+        if (isset($query['error']) || $code === '') {
+            // Still burn the state so the consent link cannot be reused.
+            return $this->consume_oauth_state($state) ? 'failed' : 'invalid_state';
+        }
+
+        if (!$this->consume_oauth_state($state)) {
+            return 'invalid_state';
+        }
+
+        return $this->exchange_code($code) ? 'connected' : 'failed';
+    }
+
+    /**
+     * Handle OAuth callback: requires manage_options and a valid, unused state
+     * for the current user before the code is exchanged.
+     */
+    public function handle_oauth_callback(string $code, string $state): bool {
+        if (!current_user_can('manage_options') || !$this->consume_oauth_state($state)) {
+            return false;
+        }
+
+        return $this->exchange_code($code);
+    }
+
+    /**
+     * Exchange an authorization code for tokens. Callers must have validated
+     * the capability and OAuth state first.
+     */
+    private function exchange_code(string $code): bool {
         $credentials = $this->get_credentials();
-        $redirect_uri = admin_url('admin.php?page=peanut-ga-integration&action=oauth_callback');
 
         // Never call Google with a missing (or undecryptable) client secret.
         if ($credentials['client_id'] === '' || $credentials['client_secret'] === '') {
@@ -572,7 +691,7 @@ class GA_Integration_Module {
                 'client_secret' => $credentials['client_secret'],
                 'code' => $code,
                 'grant_type' => 'authorization_code',
-                'redirect_uri' => $redirect_uri,
+                'redirect_uri' => $this->get_redirect_uri(),
             ],
         ]);
 
