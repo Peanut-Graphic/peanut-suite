@@ -38,6 +38,14 @@ namespace {
             return 'nonce-' . md5((string) $action);
         }
     }
+    if (!function_exists('current_user_can')) {
+        function current_user_can($cap, ...$args): bool {
+            return in_array($cap, $GLOBALS['__peanut_test_caps'] ?? [], true);
+        }
+    }
+    if (!function_exists('get_current_user_id')) {
+        function get_current_user_id(): int { return (int) ($GLOBALS['__peanut_test_user_id'] ?? 0); }
+    }
     if (!function_exists('wp_parse_args')) {
         function wp_parse_args($args, $defaults = []) {
             return array_merge((array) $defaults, (array) $args);
@@ -105,6 +113,9 @@ namespace PeanutSuite\Tests\Regression {
             $GLOBALS['mock_transients'] = [];
             $GLOBALS['mock_http_calls'] = [];
             unset($GLOBALS['mock_http_response']);
+            // Token exchange needs an admin with a valid per-user OAuth state.
+            $GLOBALS['__peanut_test_caps'] = ['manage_options'];
+            $GLOBALS['__peanut_test_user_id'] = 1;
         }
 
         protected function tearDown(): void
@@ -112,7 +123,7 @@ namespace PeanutSuite\Tests\Regression {
             $GLOBALS['mock_options'] = [];
             $GLOBALS['mock_transients'] = [];
             $GLOBALS['mock_http_calls'] = [];
-            unset($GLOBALS['mock_http_response']);
+            unset($GLOBALS['mock_http_response'], $GLOBALS['__peanut_test_caps'], $GLOBALS['__peanut_test_user_id']);
             parent::tearDown();
         }
 
@@ -187,9 +198,10 @@ namespace PeanutSuite\Tests\Regression {
                 'body' => json_encode(['access_token' => 'ya29.a', 'refresh_token' => '1//r', 'expires_in' => 3600]),
                 'response' => ['code' => 200],
             ];
-            set_transient('peanut_ga4_reports_oauth_state', 'st', 600);
+            $ga4 = new Peanut_Integration_GA4_Reports();
+            $state = $this->mintState($ga4);
 
-            $result = (new Peanut_Integration_GA4_Reports())->exchange_code('auth-code', 'st');
+            $result = $ga4->exchange_code('auth-code', $state);
 
             $this->assertTrue($result['success']);
             $this->assertSame(self::SECRET, $GLOBALS['mock_http_calls'][0]['args']['body']['client_secret']);
@@ -218,7 +230,6 @@ namespace PeanutSuite\Tests\Regression {
         public function test_legacy_plaintext_secret_still_works(): void
         {
             update_option('peanut_settings', ['ga4_reports_client_id' => 'cid', self::KEY => self::SECRET]);
-            set_transient('peanut_ga4_reports_oauth_state', 'st', 600);
             $GLOBALS['mock_http_response'] = [
                 'body' => json_encode(['access_token' => 'ya29.a', 'expires_in' => 3600]),
                 'response' => ['code' => 200],
@@ -226,7 +237,7 @@ namespace PeanutSuite\Tests\Regression {
 
             $ga4 = new Peanut_Integration_GA4_Reports();
             $this->assertTrue($ga4->has_credentials());
-            $ga4->exchange_code('auth-code', 'st');
+            $ga4->exchange_code('auth-code', $this->mintState($ga4));
             $this->assertSame(self::SECRET, $GLOBALS['mock_http_calls'][0]['args']['body']['client_secret']);
         }
 
@@ -292,7 +303,8 @@ namespace PeanutSuite\Tests\Regression {
             $this->assertFalse($ga4->has_credentials());
             $this->assertSame('', $ga4->get_auth_url());
 
-            set_transient('peanut_ga4_reports_oauth_state', 'st', 600);
+            // Even with a valid per-user state, an undecryptable secret stops the exchange.
+            set_transient(Peanut_Integration_GA4_Reports::OAUTH_STATE_TRANSIENT_PREFIX . 1, hash('sha256', 'st'), 600);
             $this->assertFalse($ga4->exchange_code('auth-code', 'st')['success']);
 
             $enc = new Peanut_Encryption();
@@ -307,6 +319,13 @@ namespace PeanutSuite\Tests\Regression {
         }
 
         // -- helpers -------------------------------------------------------------
+
+        private function mintState(Peanut_Integration_GA4_Reports $ga4): string
+        {
+            parse_str((string) parse_url($ga4->get_auth_url(), PHP_URL_QUERY), $query);
+            $this->assertNotEmpty($query['state'] ?? '', 'Expected a consent URL with a state.');
+            return (string) $query['state'];
+        }
 
         private function saveViaRest(array $settings): array
         {
