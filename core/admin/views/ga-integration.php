@@ -7,8 +7,17 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-$credentials = get_option('peanut_ga_credentials', []);
-$is_connected = !empty($credentials['access_token']) && !empty($credentials['property_id']);
+require_once dirname(__DIR__, 3) . '/core/services/class-peanut-encryption.php';
+require_once dirname(__DIR__, 3) . '/core/services/class-peanut-ga-credentials.php';
+
+// Secrets (client secret, tokens) are decrypted only to learn whether they are
+// set; they are removed before anything is rendered and never reach the page.
+$credentials = Peanut_GA_Credentials::load();
+$is_connected = $credentials['access_token'] !== '' && !empty($credentials['property_id']);
+$client_secret_set = $credentials['client_secret'] !== '';
+foreach (Peanut_GA_Credentials::SECRET_FIELDS as $secret_field) {
+    unset($credentials[$secret_field]);
+}
 
 // Handle OAuth callback
 if (isset($_GET['action']) && $_GET['action'] === 'oauth_callback' && isset($_GET['code'])) {
@@ -216,7 +225,11 @@ $period = isset($_GET['period']) ? intval($_GET['period']) : 30;
                         <div class="peanut-form-row">
                             <label for="client-secret"><?php esc_html_e('OAuth Client Secret', 'peanut-suite'); ?></label>
                             <input type="password" id="client-secret" name="client_secret"
-                                   value="<?php echo esc_attr($credentials['client_secret'] ?? ''); ?>">
+                                   value="" autocomplete="new-password"
+                                   <?php if ($client_secret_set): ?>placeholder="<?php esc_attr_e('Saved (hidden)', 'peanut-suite'); ?>" aria-describedby="client-secret-help"<?php endif; ?>>
+                            <?php if ($client_secret_set): ?>
+                                <p class="description" id="client-secret-help"><?php esc_html_e('A client secret is saved and stored encrypted. It is never shown again. Leave this field blank to keep it, or enter a new secret to replace it.', 'peanut-suite'); ?></p>
+                            <?php endif; ?>
                         </div>
 
                         <div class="peanut-form-row">

@@ -11,6 +11,9 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+require_once dirname(__DIR__, 2) . '/core/services/class-peanut-encryption.php';
+require_once dirname(__DIR__, 2) . '/core/services/class-peanut-ga-credentials.php';
+
 class GA_Integration_Module {
 
     private static ?self $instance = null;
@@ -83,19 +86,11 @@ class GA_Integration_Module {
     }
 
     /**
-     * Get credentials
+     * Get credentials with secrets decrypted, for talking to Google only.
+     * A secret that cannot be decrypted reads as '' (not configured).
      */
     private function get_credentials(): array {
-        $credentials = get_option('peanut_ga_credentials', []);
-        return wp_parse_args($credentials, [
-            'client_id' => '',
-            'client_secret' => '',
-            'access_token' => '',
-            'refresh_token' => '',
-            'token_expires' => 0,
-            'property_id' => '',
-            'gsc_property' => '',
-        ]);
+        return \Peanut_GA_Credentials::load();
     }
 
     /**
@@ -134,6 +129,11 @@ class GA_Integration_Module {
     private function refresh_access_token(string $refresh_token): ?string {
         $credentials = $this->get_credentials();
 
+        // Never call Google with a missing (or undecryptable) secret or token.
+        if ($refresh_token === '' || $credentials['client_id'] === '' || $credentials['client_secret'] === '') {
+            return null;
+        }
+
         $response = wp_remote_post('https://oauth2.googleapis.com/token', [
             'body' => [
                 'client_id' => $credentials['client_id'],
@@ -152,7 +152,7 @@ class GA_Integration_Module {
         if (!empty($body['access_token'])) {
             $credentials['access_token'] = $body['access_token'];
             $credentials['token_expires'] = time() + ($body['expires_in'] ?? 3600);
-            update_option('peanut_ga_credentials', $credentials);
+            \Peanut_GA_Credentials::save($credentials);
             return $body['access_token'];
         }
 
@@ -411,20 +411,19 @@ class GA_Integration_Module {
             wp_send_json_error('Unauthorized');
         }
 
-        $credentials = [
-            'client_id' => sanitize_text_field($_POST['client_id'] ?? ''),
-            'client_secret' => sanitize_text_field($_POST['client_secret'] ?? ''),
-            'property_id' => sanitize_text_field($_POST['property_id'] ?? ''),
-            'gsc_property' => sanitize_text_field($_POST['gsc_property'] ?? ''),
+        $submitted = [
+            'client_id' => sanitize_text_field(wp_unslash($_POST['client_id'] ?? '')),
+            // The page never re-displays the stored secret, so a blank field
+            // means "keep the saved secret" (merge_submission()).
+            'client_secret' => sanitize_text_field(wp_unslash($_POST['client_secret'] ?? '')),
+            'property_id' => sanitize_text_field(wp_unslash($_POST['property_id'] ?? '')),
+            'gsc_property' => sanitize_text_field(wp_unslash($_POST['gsc_property'] ?? '')),
         ];
 
-        // Preserve existing tokens
-        $existing = $this->get_credentials();
-        $credentials['access_token'] = $existing['access_token'];
-        $credentials['refresh_token'] = $existing['refresh_token'];
-        $credentials['token_expires'] = $existing['token_expires'];
-
-        update_option('peanut_ga_credentials', $credentials);
+        // Tokens are preserved; secrets are stored encrypted.
+        \Peanut_GA_Credentials::save(
+            \Peanut_GA_Credentials::merge_submission($submitted, $this->get_credentials())
+        );
 
         wp_send_json_success(['message' => 'Credentials saved']);
     }
@@ -464,7 +463,7 @@ class GA_Integration_Module {
             wp_send_json_error('Unauthorized');
         }
 
-        delete_option('peanut_ga_credentials');
+        delete_option(\Peanut_GA_Credentials::OPTION);
         delete_transient('peanut_ga_overview_7');
         delete_transient('peanut_ga_overview_30');
         delete_transient('peanut_ga_overview_90');
@@ -533,7 +532,9 @@ class GA_Integration_Module {
     public function get_oauth_url(): string {
         $credentials = $this->get_credentials();
 
-        if (empty($credentials['client_id'])) {
+        // Without a usable client secret the code exchange cannot succeed, so
+        // do not start a consent flow (covers an undecryptable secret).
+        if (empty($credentials['client_id']) || $credentials['client_secret'] === '') {
             return '';
         }
 
@@ -560,6 +561,11 @@ class GA_Integration_Module {
         $credentials = $this->get_credentials();
         $redirect_uri = admin_url('admin.php?page=peanut-ga-integration&action=oauth_callback');
 
+        // Never call Google with a missing (or undecryptable) client secret.
+        if ($credentials['client_id'] === '' || $credentials['client_secret'] === '') {
+            return false;
+        }
+
         $response = wp_remote_post('https://oauth2.googleapis.com/token', [
             'body' => [
                 'client_id' => $credentials['client_id'],
@@ -580,7 +586,7 @@ class GA_Integration_Module {
             $credentials['access_token'] = $body['access_token'];
             $credentials['refresh_token'] = $body['refresh_token'] ?? $credentials['refresh_token'];
             $credentials['token_expires'] = time() + ($body['expires_in'] ?? 3600);
-            update_option('peanut_ga_credentials', $credentials);
+            \Peanut_GA_Credentials::save($credentials);
             return true;
         }
 

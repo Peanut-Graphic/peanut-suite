@@ -166,6 +166,18 @@ function peanut_maybe_upgrade_settings_secrets() {
 add_action('plugins_loaded', 'peanut_maybe_upgrade_settings_secrets');
 
 /**
+ * One-time upgrade: encrypt the GA Integration module's OAuth client secret
+ * and access/refresh tokens (option peanut_ga_credentials), stored in
+ * plaintext by earlier versions. Gated by peanut_ga_credentials_secrets_version.
+ */
+function peanut_maybe_upgrade_ga_credentials() {
+    require_once PEANUT_PLUGIN_DIR . 'core/services/class-peanut-encryption.php';
+    require_once PEANUT_PLUGIN_DIR . 'core/services/class-peanut-ga-credentials.php';
+    Peanut_GA_Credentials::maybe_upgrade();
+}
+add_action('plugins_loaded', 'peanut_maybe_upgrade_ga_credentials');
+
+/**
  * Initialize the plugin (on init for WordPress 6.7+ translation compatibility)
  */
 function peanut_init() {
