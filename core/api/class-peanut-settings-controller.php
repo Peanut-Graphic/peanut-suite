@@ -18,7 +18,8 @@ class Peanut_Settings_Controller extends Peanut_REST_Controller {
         register_rest_route($this->namespace, '/' . $this->rest_base, [
             'methods' => WP_REST_Server::READABLE,
             'callback' => [$this, 'get_settings'],
-            'permission_callback' => [$this, 'permission_callback'],
+            // Settings hold third-party credentials: admins only, same as writes.
+            'permission_callback' => [$this, 'admin_permission_callback'],
         ]);
 
         // Update settings

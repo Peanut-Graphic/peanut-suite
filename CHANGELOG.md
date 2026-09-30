@@ -1,6 +1,7 @@
 ## Unreleased
 
 ### Security
+- **Settings API no longer exposes credentials to non-admins.** `GET /peanut/v1/settings` only required a logged-in user with a REST nonce, so any Subscriber or customer account could read the whole `peanut_settings` option, including the Stripe secret key and webhook secret, the GA4 Measurement Protocol API secret, and the Mailchimp and ConvertKit keys. The read route now requires `manage_options`, the same as writes. Those six secrets are also write-only over REST, even for admins: responses return `""` plus a `<key>_set` flag, and a blank submitted value keeps the stored secret, so a load-then-save cannot wipe a live key. Encrypting them at rest is a follow-up, because each integration still reads them as plaintext.
 
 - Constrain the Firebase Functions `qs` transitive to 6.16.0 or newer so both current parser/denial-of-service advisories remain closed, with a lock-floor regression.
 - Reclassify the remaining Functions `uuid` advisory as a coupled Node 22 and dependency-major migration after current upstream packages removed the old `uuid` edge but raised their runtime floor.
