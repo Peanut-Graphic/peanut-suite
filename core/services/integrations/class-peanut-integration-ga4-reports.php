@@ -32,6 +32,17 @@ class Peanut_Integration_GA4_Reports {
     private const CACHE_DURATION = HOUR_IN_SECONDS;
 
     /**
+     * OAuth `state` storage: a per-user transient holding the SHA-256 of the
+     * random state sent to Google. Short-lived and single-use.
+     */
+    public const OAUTH_STATE_TRANSIENT_PREFIX = 'peanut_ga4_reports_oauth_state_';
+    public const OAUTH_STATE_TTL = 10 * 60;
+
+    /** Admin page the OAuth redirect URI points at. */
+    public const ADMIN_PAGE = 'peanut-settings';
+    public const CALLBACK_FLAG = 'ga4_reports_callback';
+
+    /**
      * Client credentials
      */
     private string $client_id;
@@ -47,7 +58,7 @@ class Peanut_Integration_GA4_Reports {
         // Stored encrypted; '' when unset or undecryptable (= not configured),
         // so ciphertext is never sent to Google.
         $this->client_secret = Peanut_Settings_Secrets::get($settings, 'ga4_reports_client_secret');
-        $this->redirect_uri = admin_url('admin.php?page=peanut-settings&ga4_reports_callback=1');
+        $this->redirect_uri = admin_url('admin.php?page=' . self::ADMIN_PAGE . '&' . self::CALLBACK_FLAG . '=1');
     }
 
     /**
@@ -59,14 +70,19 @@ class Peanut_Integration_GA4_Reports {
 
     /**
      * Get OAuth authorization URL
+     *
+     * Mints a fresh single-use `state` bound to the current user; returns ''
+     * when no consent flow can be started.
      */
     public function get_auth_url(): string {
         if (!$this->has_credentials()) {
             return '';
         }
 
-        $state = wp_create_nonce('peanut_ga4_reports_oauth');
-        set_transient('peanut_ga4_reports_oauth_state', $state, 10 * MINUTE_IN_SECONDS);
+        $state = $this->create_oauth_state();
+        if ($state === '') {
+            return '';
+        }
 
         $params = [
             'client_id' => $this->client_id,
@@ -82,18 +98,115 @@ class Peanut_Integration_GA4_Reports {
     }
 
     /**
-     * Exchange authorization code for tokens
+     * Generate a random OAuth state for the current user and remember its hash.
+     * A newer consent link replaces any earlier, unused one.
+     */
+    private function create_oauth_state(): string {
+        $user_id = (int) get_current_user_id();
+        if ($user_id <= 0) {
+            return '';
+        }
+
+        $state = bin2hex(random_bytes(32));
+        set_transient(self::OAUTH_STATE_TRANSIENT_PREFIX . $user_id, hash('sha256', $state), self::OAUTH_STATE_TTL);
+
+        return $state;
+    }
+
+    /**
+     * Check a returned state against the current user's stored one. The stored
+     * state is deleted on every check, so each state can be used at most once.
+     */
+    private function consume_oauth_state(string $state): bool {
+        $user_id = (int) get_current_user_id();
+        if ($user_id <= 0) {
+            return false;
+        }
+
+        $key = self::OAUTH_STATE_TRANSIENT_PREFIX . $user_id;
+        $stored = get_transient($key);
+        delete_transient($key);
+
+        if (!is_string($stored) || $stored === '' || $state === '') {
+            return false;
+        }
+
+        return hash_equals($stored, hash('sha256', $state));
+    }
+
+    /**
+     * admin_init handler: complete the OAuth redirect, then send the admin back
+     * to the settings page without the code/state in the URL.
+     *
+     * NOTE: nothing registers this hook yet. The GA4 Reports integration is not
+     * wired into the plugin (no production code constructs this class), so the
+     * redirect URI currently lands on a page that ignores it. Whoever wires the
+     * feature must add `add_action('admin_init', [$instance, 'maybe_handle_oauth_callback'])`.
+     */
+    public function maybe_handle_oauth_callback(): void {
+        if (($_GET['page'] ?? '') !== self::ADMIN_PAGE || ($_GET[self::CALLBACK_FLAG] ?? '') !== '1') {
+            return;
+        }
+
+        $status = $this->process_oauth_callback(wp_unslash($_GET));
+
+        wp_safe_redirect(admin_url('admin.php?page=' . self::ADMIN_PAGE . '&ga4_reports_oauth=' . rawurlencode($status)));
+        exit;
+    }
+
+    /**
+     * Validate and complete an OAuth callback request.
+     *
+     * @param array $query The callback's query parameters.
+     * @return string One of: connected, failed, invalid_state, forbidden.
+     */
+    public function process_oauth_callback(array $query): string {
+        if (!current_user_can('manage_options')) {
+            return 'forbidden';
+        }
+
+        $state = isset($query['state']) && is_string($query['state']) ? $query['state'] : '';
+        $code = isset($query['code']) && is_string($query['code']) ? sanitize_text_field($query['code']) : '';
+
+        if (isset($query['error']) || $code === '') {
+            // Still burn the state so the consent link cannot be reused.
+            return $this->consume_oauth_state($state) ? 'failed' : 'invalid_state';
+        }
+
+        if (!$this->consume_oauth_state($state)) {
+            return 'invalid_state';
+        }
+
+        return $this->request_tokens($code)['success'] ? 'connected' : 'failed';
+    }
+
+    /**
+     * Exchange authorization code for tokens. Requires manage_options and a
+     * valid, unused state for the current user before anything reaches Google.
      */
     public function exchange_code(string $code, string $state): array {
-        $stored_state = get_transient('peanut_ga4_reports_oauth_state');
-        if ($state !== $stored_state) {
+        if (!current_user_can('manage_options')) {
+            return [
+                'success' => false,
+                'error' => __('You are not allowed to connect Google Analytics', 'peanut-suite'),
+            ];
+        }
+
+        if (!$this->consume_oauth_state($state)) {
             return [
                 'success' => false,
                 'error' => __('Invalid OAuth state', 'peanut-suite'),
             ];
         }
-        delete_transient('peanut_ga4_reports_oauth_state');
 
+        return $this->request_tokens($code);
+    }
+
+    /**
+     * Exchange an authorization code with Google. Callers must have validated
+     * the capability and OAuth state first.
+     */
+    private function request_tokens(string $code): array {
         if (!$this->has_credentials()) {
             return [
                 'success' => false,
