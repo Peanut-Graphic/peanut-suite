@@ -85,7 +85,9 @@ class Peanut_Settings_Controller extends Peanut_REST_Controller {
      */
     public function get_settings(WP_REST_Request $request): WP_REST_Response {
         return $this->success([
-            'general' => get_option('peanut_settings', []),
+            // Secrets (GA4 Reports client secret) are never returned; the
+            // response carries a "<key>_set" flag instead.
+            'general' => Peanut_Settings_Secrets::redact((array) get_option('peanut_settings', [])),
             'modules' => peanut_get_active_modules(),
         ]);
     }
@@ -100,8 +102,10 @@ class Peanut_Settings_Controller extends Peanut_REST_Controller {
             return $this->error(__('Invalid settings format', 'peanut-suite'));
         }
 
-        $current = get_option('peanut_settings', []);
-        $updated = wp_parse_args(
+        $current = (array) get_option('peanut_settings', []);
+        // A blank secret keeps the stored one; secrets are stored encrypted
+        // (a legacy plaintext secret is encrypted by any save).
+        $updated = Peanut_Settings_Secrets::prepare_update(
             Peanut_Security::sanitize_fields($settings),
             $current
         );
@@ -110,7 +114,7 @@ class Peanut_Settings_Controller extends Peanut_REST_Controller {
 
         return $this->success([
             'message' => __('Settings saved', 'peanut-suite'),
-            'settings' => $updated,
+            'settings' => Peanut_Settings_Secrets::redact($updated),
         ]);
     }
 

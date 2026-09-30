@@ -35,6 +35,7 @@ final class EncryptionCallersRegressionTest extends TestCase {
         }
         $root = dirname(__DIR__, 2);
         require_once $root . '/core/services/class-peanut-encryption.php';
+        require_once $root . '/core/services/class-peanut-settings-secrets.php';
         require_once $root . '/core/services/integrations/class-peanut-integration-ga4-reports.php';
         require_once $root . '/modules/monitor/class-monitor-sites.php';
     }
@@ -69,6 +70,12 @@ final class EncryptionCallersRegressionTest extends TestCase {
         $legacy_refresh = self::legacy_cbc($enc, '1//legacy-refresh-token');
         $this->assertTrue($enc->needs_reencrypt($legacy_refresh));
 
+        // A refresh needs configured OAuth client credentials; without them
+        // nothing is sent to Google (see Ga4ClientSecretAtRestRegressionTest).
+        update_option('peanut_settings', [
+            'ga4_reports_client_id' => 'cid',
+            'ga4_reports_client_secret' => (new Peanut_Encryption())->encrypt('GOCSPX-test'),
+        ]);
         update_option('peanut_ga4_reports_tokens', [
             'access_token' => self::LEGACY_ACCESS,
             'refresh_token' => $legacy_refresh,

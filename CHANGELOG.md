@@ -5,6 +5,7 @@
 - Constrain the Firebase Functions `qs` transitive to 6.16.0 or newer so both current parser/denial-of-service advisories remain closed, with a lock-floor regression.
 - Reclassify the remaining Functions `uuid` advisory as a coupled Node 22 and dependency-major migration after current upstream packages removed the old `uuid` edge but raised their runtime floor.
 - Secrets stored through `Peanut_Encryption` (GA4 Reports OAuth access and refresh tokens, Monitor site keys) are now encrypted with authenticated encryption (XChaCha20-Poly1305, `$PS_ENC$v2:` format, HKDF-SHA256 subkey) instead of unauthenticated AES-256-CBC, so tampered, truncated, or wrong-key values fail closed. Existing CBC values still decrypt; GA4 tokens are rewritten in the new format on their next refresh, and `needs_reencrypt()` reports values that are still legacy.
+- The GA4 Reports OAuth client secret (`peanut_settings['ga4_reports_client_secret']`) is now encrypted at rest with the same `$PS_ENC$v2:` format as the tokens it guards, instead of plaintext. `GET`/`POST /peanut/v1/settings` no longer return it (the field comes back blank with a `ga4_reports_client_secret_set` flag), a blank submitted value keeps the stored secret, a legacy plaintext value keeps working and is encrypted by the next settings save and by a one-time upgrade on `plugins_loaded` (flag `peanut_settings_secrets_version`), and a value that fails decryption counts as not configured so no token exchange or refresh request is sent to Google.
 
 ### Fixed
 

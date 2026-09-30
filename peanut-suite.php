@@ -154,6 +154,18 @@ function peanut_maybe_upgrade_db() {
 add_action('plugins_loaded', 'peanut_maybe_upgrade_db');
 
 /**
+ * One-time upgrade: encrypt secrets stored in plaintext inside peanut_settings
+ * (the GA4 Reports OAuth client secret) by earlier versions. Gated by the
+ * peanut_settings_secrets_version option, so it is one get_option afterwards.
+ */
+function peanut_maybe_upgrade_settings_secrets() {
+    require_once PEANUT_PLUGIN_DIR . 'core/services/class-peanut-encryption.php';
+    require_once PEANUT_PLUGIN_DIR . 'core/services/class-peanut-settings-secrets.php';
+    Peanut_Settings_Secrets::maybe_upgrade();
+}
+add_action('plugins_loaded', 'peanut_maybe_upgrade_settings_secrets');
+
+/**
  * Initialize the plugin (on init for WordPress 6.7+ translation compatibility)
  */
 function peanut_init() {
