@@ -63,6 +63,32 @@ abstract class Peanut_REST_Controller {
     }
 
     /**
+     * Peanut Suite access permission callback
+     *
+     * Login + nonce, plus the `peanut_access` capability: WordPress
+     * administrators, or users a team admin added to a Peanut account (see
+     * Peanut_Admin::grant_peanut_access_to_team()). Use it for writes a
+     * non-admin team member legitimately performs in the Suite app but a
+     * plain Subscriber must not.
+     */
+    public function peanut_access_permission_callback(WP_REST_Request $request): bool|WP_Error {
+        $base = $this->permission_callback($request);
+        if (is_wp_error($base)) {
+            return $base;
+        }
+
+        if (!current_user_can('peanut_access')) {
+            return new WP_Error(
+                'rest_forbidden',
+                __('Peanut Suite access required.', 'peanut-suite'),
+                ['status' => 403]
+            );
+        }
+
+        return true;
+    }
+
+    /**
      * Success response
      */
     protected function success(array $data = [], int $status = 200): WP_REST_Response {

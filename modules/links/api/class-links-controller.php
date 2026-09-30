@@ -19,11 +19,16 @@ class Links_Controller extends Peanut_REST_Controller {
             'permission_callback' => [$this, 'permission_callback'],
         ]);
 
+        // Create / retarget / from-utm mint a redirect on the site's own
+        // domain to an arbitrary destination, so they require peanut_access
+        // (administrators and invited Peanut team members), not merely a
+        // logged-in account.
+
         // Create link
         register_rest_route($this->namespace, '/' . $this->rest_base, [
             'methods' => WP_REST_Server::CREATABLE,
             'callback' => [$this, 'create_item'],
-            'permission_callback' => [$this, 'permission_callback'],
+            'permission_callback' => [$this, 'peanut_access_permission_callback'],
         ]);
 
         // Get link
@@ -37,7 +42,7 @@ class Links_Controller extends Peanut_REST_Controller {
         register_rest_route($this->namespace, '/' . $this->rest_base . '/(?P<id>\d+)', [
             'methods' => WP_REST_Server::EDITABLE,
             'callback' => [$this, 'update_item'],
-            'permission_callback' => [$this, 'permission_callback'],
+            'permission_callback' => [$this, 'peanut_access_permission_callback'],
         ]);
 
         // Delete link
@@ -58,7 +63,7 @@ class Links_Controller extends Peanut_REST_Controller {
         register_rest_route($this->namespace, '/' . $this->rest_base . '/from-utm', [
             'methods' => WP_REST_Server::CREATABLE,
             'callback' => [$this, 'create_from_utm'],
-            'permission_callback' => [$this, 'permission_callback'],
+            'permission_callback' => [$this, 'peanut_access_permission_callback'],
         ]);
     }
 
