@@ -27,6 +27,7 @@ import {
   createCheckboxColumn,
 } from '../components/common';
 import { webhooksApi } from '../api/endpoints';
+import SigningSecretsCard from '../components/webhooks/SigningSecretsCard';
 import type { Webhook, WebhookStatus } from '../types';
 
 const columnHelper = createColumnHelper<Webhook>();
@@ -268,6 +269,9 @@ export default function Webhooks() {
           <div className="text-sm text-slate-500">Success Rate</div>
         </Card>
       </div>
+
+      {/* Per-source signing secrets + unsigned-source status */}
+      <SigningSecretsCard />
 
       {/* Filters */}
       <Card className="mb-6">

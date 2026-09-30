@@ -15,6 +15,8 @@ import type {
   Webhook,
   WebhookStats,
   WebhookFilters,
+  WebhookSigningStatus,
+  WebhookSigningSecretResult,
   Visitor,
   VisitorEvent,
   VisitorStats,
@@ -455,6 +457,36 @@ export const webhooksApi = {
     const { data } = await api.post<{ message: string; deleted: number }>(
       '/webhooks/bulk-delete',
       { ids }
+    );
+    return data;
+  },
+
+  getSigningStatus: async () => {
+    const { data } = await api.get<WebhookSigningStatus>('/webhooks/signing');
+    return data;
+  },
+
+  /** Generate a new random secret (returned once) for a source. */
+  generateSigningSecret: async (source: string) => {
+    const { data } = await api.post<WebhookSigningSecretResult>('/webhooks/signing', {
+      source,
+      generate: true,
+    });
+    return data;
+  },
+
+  /** Store a secret issued by the sender (not echoed back). */
+  setSigningSecret: async (source: string, secret: string) => {
+    const { data } = await api.post<WebhookSigningSecretResult>('/webhooks/signing', {
+      source,
+      secret,
+    });
+    return data;
+  },
+
+  clearSigningSecret: async (source: string) => {
+    const { data } = await api.delete<WebhookSigningSecretResult>(
+      `/webhooks/signing/${encodeURIComponent(source)}`
     );
     return data;
   },
