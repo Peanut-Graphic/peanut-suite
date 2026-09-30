@@ -4,6 +4,11 @@
 
 - Constrain the Firebase Functions `qs` transitive to 6.16.0 or newer so both current parser/denial-of-service advisories remain closed, with a lock-floor regression.
 - Reclassify the remaining Functions `uuid` advisory as a coupled Node 22 and dependency-major migration after current upstream packages removed the old `uuid` edge but raised their runtime floor.
+- Secrets stored through `Peanut_Encryption` (GA4 Reports OAuth access and refresh tokens, Monitor site keys) are now encrypted with authenticated encryption (XChaCha20-Poly1305, `$PS_ENC$v2:` format, HKDF-SHA256 subkey) instead of unauthenticated AES-256-CBC, so tampered, truncated, or wrong-key values fail closed. Existing CBC values still decrypt; GA4 tokens are rewritten in the new format on their next refresh, and `needs_reencrypt()` reports values that are still legacy.
+
+### Fixed
+
+- Adding a site in the Monitor module no longer fatals after the site row is inserted. `Monitor_Sites` called `Peanut_Encryption::encrypt()` and `decrypt()` statically, which is an `Error` on PHP 8, so no site key was ever stored and requests to child sites went out without their bearer key. A value that fails decryption is now treated as no key.
 
 ### Testing
 
