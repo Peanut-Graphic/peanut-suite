@@ -75,11 +75,12 @@ class Peanut_Admin {
             return $allcaps;
         }
 
-        // Check if user is a Peanut team member
+        // Check if user is a Peanut team member someone else added. Merely
+        // having an account is not enough: accounts used to be auto-created
+        // for any logged-in user, which made every Subscriber a "member".
         if (class_exists('Peanut_Account_Service')) {
-            $user_id = $user->ID ?? get_current_user_id();
-            $account = Peanut_Account_Service::get_user_account($user_id);
-            if ($account) {
+            $user_id = (int) ($user->ID ?? get_current_user_id());
+            if ($user_id > 0 && Peanut_Account_Service::has_team_access($user_id)) {
                 $allcaps['peanut_access'] = true;
             }
         }

@@ -193,7 +193,9 @@ class Peanut_Accounts_Controller extends Peanut_REST_Controller {
         $account = Peanut_Account_Service::get_or_create_for_user($user_id);
 
         if (!$account) {
-            return $this->error('Failed to get or create account', 'account_error', 500);
+            // Non-administrators are never given an auto-created account;
+            // a user nobody added to a team simply has none.
+            return $this->not_found('No Peanut account for this user');
         }
 
         return $this->success($account);
@@ -665,7 +667,7 @@ class Peanut_Accounts_Controller extends Peanut_REST_Controller {
         $account = Peanut_Account_Service::get_or_create_for_user($user_id);
 
         if (!$account) {
-            return $this->error('Failed to get account', 'account_error', 500);
+            return $this->not_found('No Peanut account for this user');
         }
 
         $features = Peanut_Account_Service::get_available_features($account['tier']);
