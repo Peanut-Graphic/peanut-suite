@@ -96,23 +96,12 @@ namespace {
             public function get_status() { return $this->status; }
         }
     }
-    // Collaborators of the webhooks receiver: recorded, never touch a DB.
-    if (!class_exists('Webhooks_Database')) {
-        class Webhooks_Database {
-            public static array $inserted = [];
-            public static function insert(array $data) { self::$inserted[] = $data; return count(self::$inserted); }
-        }
+    if (!defined('PEANUT_TABLE_PREFIX')) {
+        define('PEANUT_TABLE_PREFIX', 'peanut_');
     }
-    if (!class_exists('Webhooks_Processor')) {
-        class Webhooks_Processor {
-            public static array $processed = [];
-            public static function process(int $id): bool { self::$processed[] = $id; return true; }
-        }
-    }
-    if (!class_exists('Peanut_Database')) {
-        class Peanut_Database {
-            public static function accounts_table(): string { return 'wp_peanut_accounts'; }
-            public static function account_members_table(): string { return 'wp_peanut_account_members'; }
+    if (!function_exists('wp_parse_args')) {
+        function wp_parse_args($args, $defaults = []) {
+            return array_merge((array) $defaults, (array) $args);
         }
     }
 }
@@ -156,10 +145,13 @@ namespace PeanutSuite\Tests\Regression {
         {
             $root = dirname(__DIR__, 2);
             require_once $root . '/core/services/class-peanut-security.php';
+            require_once $root . '/core/database/class-peanut-database.php';
             require_once $root . '/core/api/class-peanut-rest-controller.php';
             require_once $root . '/core/services/class-peanut-account-service.php';
             require_once $root . '/core/api/class-peanut-accounts-controller.php';
             require_once $root . '/core/admin/class-peanut-admin.php';
+            require_once $root . '/modules/webhooks/class-webhooks-database.php';
+            require_once $root . '/modules/webhooks/class-webhooks-processor.php';
             require_once $root . '/modules/webhooks/class-webhooks-signature.php';
             require_once $root . '/modules/webhooks/api/class-webhooks-controller.php';
             require_once $root . '/modules/formflow/class-formflow-module.php';
@@ -171,6 +163,7 @@ namespace PeanutSuite\Tests\Regression {
         }
 
         private array $serverBackup = [];
+        private RestAuthzFakeWpdb $wpdb;
         private $wpdbBackup = null;
 
         protected function setUp(): void
@@ -181,8 +174,8 @@ namespace PeanutSuite\Tests\Regression {
             $GLOBALS['__peanut_test_routes'] = [];
             $this->serverBackup = $_SERVER;
             $this->wpdbBackup = $GLOBALS['wpdb'] ?? null;
-            \Webhooks_Database::$inserted = [];
-            \Webhooks_Processor::$processed = [];
+            // Default DB double: no rows; records every insert.
+            $this->wpdb = $this->useWpdb(static fn() => null);
         }
 
         protected function tearDown(): void
@@ -309,8 +302,7 @@ namespace PeanutSuite\Tests\Regression {
 
             $this->assertInstanceOf(\WP_Error::class, $result, 'An unsigned webhook for a source with a secret must be rejected.');
             $this->assertSame(401, $result->get_error_data()['status'] ?? null);
-            $this->assertSame([], \Webhooks_Database::$inserted, 'A rejected webhook must not be stored.');
-            $this->assertSame([], \Webhooks_Processor::$processed);
+            $this->assertSame([], $this->storedWebhooks(), 'A rejected webhook must not be stored.');
         }
 
         public function test_receive_rejects_an_invalid_signature_and_stores_nothing(): void
@@ -322,7 +314,7 @@ namespace PeanutSuite\Tests\Regression {
 
             $this->assertInstanceOf(\WP_Error::class, $result);
             $this->assertSame(401, $result->get_error_data()['status'] ?? null);
-            $this->assertSame([], \Webhooks_Database::$inserted);
+            $this->assertSame([], $this->storedWebhooks());
         }
 
         public function test_receive_accepts_a_valid_signature(): void
@@ -335,7 +327,7 @@ namespace PeanutSuite\Tests\Regression {
 
             $this->assertInstanceOf(\WP_REST_Response::class, $result);
             $this->assertSame(202, $result->status);
-            $this->assertCount(1, \Webhooks_Database::$inserted);
+            $this->assertCount(1, $this->storedWebhooks());
         }
 
         public function test_receive_keeps_accepting_unsigned_webhooks_for_a_source_with_no_secret(): void
@@ -346,7 +338,7 @@ namespace PeanutSuite\Tests\Regression {
 
             $this->assertInstanceOf(\WP_REST_Response::class, $result);
             $this->assertSame(202, $result->status);
-            $this->assertCount(1, \Webhooks_Database::$inserted);
+            $this->assertCount(1, $this->storedWebhooks());
         }
 
         // ------------------------------------------------------------------
@@ -565,6 +557,11 @@ namespace PeanutSuite\Tests\Regression {
                 public function __construct(string $body, array $headers) { parent::__construct($headers); $this->body = $body; }
                 public function get_body() { return $this->body; }
             };
+        }
+
+        private function storedWebhooks(): array
+        {
+            return array_values(array_filter($this->wpdb->inserts, static fn($i) => str_ends_with($i['table'], 'webhooks_received')));
         }
 
         private function useWpdb(callable $answer): RestAuthzFakeWpdb
