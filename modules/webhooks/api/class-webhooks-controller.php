@@ -70,6 +70,27 @@ class Webhooks_Controller extends Peanut_REST_Controller {
             'callback' => [$this, 'bulk_delete'],
             'permission_callback' => [$this, 'admin_permission_callback'],
         ]);
+
+        // Admin endpoints: per-source signing secrets. Status never includes
+        // a secret; a generated secret is returned once, by the POST only.
+        register_rest_route($this->namespace, '/' . $this->rest_base . '/signing', [
+            [
+                'methods' => WP_REST_Server::READABLE,
+                'callback' => [$this, 'get_signing_status'],
+                'permission_callback' => [$this, 'admin_permission_callback'],
+            ],
+            [
+                'methods' => WP_REST_Server::CREATABLE,
+                'callback' => [$this, 'set_signing_secret'],
+                'permission_callback' => [$this, 'admin_permission_callback'],
+            ],
+        ]);
+
+        register_rest_route($this->namespace, '/' . $this->rest_base . '/signing/(?P<source>[A-Za-z0-9._-]{1,64})', [
+            'methods' => WP_REST_Server::DELETABLE,
+            'callback' => [$this, 'delete_signing_secret'],
+            'permission_callback' => [$this, 'admin_permission_callback'],
+        ]);
     }
 
     /**
@@ -107,13 +128,12 @@ class Webhooks_Controller extends Peanut_REST_Controller {
         // attacker bypassed it by omitting the header.
         //
         // Sources with NO secret configured are still accepted unsigned (the
-        // pre-existing behavior; unconfigured sites keep working). Configure a
-        // per-source secret in the peanut_webhook_secrets option to require
-        // signatures for that source.
+        // pre-existing behavior; unconfigured sites keep working). Admins set
+        // a per-source secret on the Webhooks page (POST /webhooks/signing).
+        // A configured secret that cannot be decrypted fails closed.
         $signature = Webhooks_Signature::get_signature_from_headers();
-        $secret = Webhooks_Signature::get_secret($source);
 
-        if ($secret !== '') {
+        if (Webhooks_Signature::has_secret($source)) {
             if (empty($signature) || !Webhooks_Signature::verify($raw_body, (string) $signature, $source)) {
                 return $this->error(
                     __('Invalid or missing webhook signature.', 'peanut-suite'),
@@ -155,6 +175,88 @@ class Webhooks_Controller extends Peanut_REST_Controller {
             'received' => true,
             'webhook_id' => $webhook_id,
         ], 202);
+    }
+
+    /**
+     * Signing status: which sources require a signature, which are unsigned.
+     */
+    public function get_signing_status(WP_REST_Request $request): WP_REST_Response {
+        $seen = Webhooks_Database::get_sources();
+        $sources = Webhooks_Signature::sources_status(is_array($seen) ? $seen : []);
+
+        $unsigned_seen = [];
+        foreach ($sources as $row) {
+            if ($row['seen'] && !$row['signed']) {
+                $unsigned_seen[] = $row['source'];
+            }
+        }
+
+        return $this->success([
+            'endpoint_url' => rest_url(PEANUT_API_NAMESPACE . '/webhooks/receive'),
+            'sources' => $sources,
+            'unsigned_seen_sources' => $unsigned_seen,
+        ]);
+    }
+
+    /**
+     * Set or rotate a source's signing secret.
+     *
+     * generate=true creates a random secret and returns it in this response
+     * only (it is never shown again). Otherwise `secret` is a secret issued
+     * by the sender; it is stored but not echoed back.
+     */
+    public function set_signing_secret(WP_REST_Request $request): WP_REST_Response|WP_Error {
+        $source = (string) $request->get_param('source');
+        if (!Webhooks_Signature::is_valid_source($source)) {
+            return $this->error(
+                __('Source names may use letters, numbers, dots, dashes and underscores (up to 64 characters).', 'peanut-suite'),
+                'invalid_source',
+                400
+            );
+        }
+
+        $generate = filter_var($request->get_param('generate'), FILTER_VALIDATE_BOOLEAN);
+        $secret = $generate ? Webhooks_Signature::generate_secret() : trim((string) $request->get_param('secret'));
+
+        if (!$generate && strlen($secret) < Webhooks_Signature::MIN_SECRET_LENGTH) {
+            return $this->error(
+                sprintf(
+                    /* translators: %d: minimum secret length */
+                    __('A signing secret must be at least %d characters. Use Generate for a strong one.', 'peanut-suite'),
+                    Webhooks_Signature::MIN_SECRET_LENGTH
+                ),
+                'invalid_secret',
+                400
+            );
+        }
+
+        if (!Webhooks_Signature::set_secret($source, $secret)) {
+            return $this->error(
+                __('The signing secret could not be stored encrypted on this server.', 'peanut-suite'),
+                'secret_not_stored',
+                500
+            );
+        }
+
+        $data = ['source' => $source, 'signed' => true];
+        if ($generate) {
+            $data['secret'] = $secret;
+        }
+        return $this->success($data);
+    }
+
+    /**
+     * Clear a source's signing secret (it is then accepted unsigned).
+     */
+    public function delete_signing_secret(WP_REST_Request $request): WP_REST_Response|WP_Error {
+        $source = (string) $request->get_param('source');
+        if (!Webhooks_Signature::is_valid_source($source)) {
+            return $this->error(__('Invalid source.', 'peanut-suite'), 'invalid_source', 400);
+        }
+
+        Webhooks_Signature::delete_secret($source);
+
+        return $this->success(['source' => $source, 'signed' => false]);
     }
 
     /**

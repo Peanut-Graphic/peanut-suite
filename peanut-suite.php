@@ -178,6 +178,18 @@ function peanut_maybe_upgrade_ga_credentials() {
 add_action('plugins_loaded', 'peanut_maybe_upgrade_ga_credentials');
 
 /**
+ * One-time upgrade: encrypt per-source webhook signing secrets
+ * (option peanut_webhook_secrets) that were stored in plaintext.
+ * Gated by peanut_webhook_secrets_version.
+ */
+function peanut_maybe_upgrade_webhook_secrets() {
+    require_once PEANUT_PLUGIN_DIR . 'core/services/class-peanut-encryption.php';
+    require_once PEANUT_PLUGIN_DIR . 'modules/webhooks/class-webhooks-signature.php';
+    Webhooks_Signature::maybe_upgrade();
+}
+add_action('plugins_loaded', 'peanut_maybe_upgrade_webhook_secrets');
+
+/**
  * Initialize the plugin (on init for WordPress 6.7+ translation compatibility)
  */
 function peanut_init() {

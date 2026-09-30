@@ -379,6 +379,14 @@ class Peanut_Help {
                 <li><strong style="color: #f59e0b;">' . __('Pending', 'peanut-suite') . '</strong> - ' . __('Waiting to be processed', 'peanut-suite') . '</li>
                 <li><strong style="color: #ef4444;">' . __('Failed', 'peanut-suite') . '</strong> - ' . __('Error occurred during processing', 'peanut-suite') . '</li>
             </ul>
+
+            <h4>' . __('Signing Secrets', 'peanut-suite') . '</h4>
+            <p>' . __('Give a source a signing secret (Webhooks page, Signing secrets) and every webhook from it must carry an HMAC-SHA256 signature of the raw request body, or it is rejected. Sources with no secret are accepted unsigned and are listed as Unsigned. Secrets are stored encrypted; a generated secret is shown once.', 'peanut-suite') . '</p>
+            <ul>
+                <li><strong>FormFlow Lite</strong> - ' . __('source "formflow-lite"; signs with the X-FFFL-Signature header when its webhook has a Secret.', 'peanut-suite') . '</li>
+                <li><strong>FormFlow Pro</strong> - ' . __('sends no source, so it arrives as "unknown"; signs with X-ISF-Signature. Set its secret on "unknown".', 'peanut-suite') . '</li>
+                <li>' . __('Other senders: send X-Webhook-Signature: sha256=&lt;hex digest&gt; and name the source with an X-Webhook-Source header or a "source" field.', 'peanut-suite') . '</li>
+            </ul>
         ';
     }
 
@@ -403,6 +411,7 @@ class Peanut_Help {
             <p><strong>' . __('Signature Verification Failed', 'peanut-suite') . '</strong></p>
             <ul>
                 <li>' . __('Ensure the webhook secret matches in both applications', 'peanut-suite') . '</li>
+                <li>' . __('If the Webhooks page shows "Secret unreadable", the stored secret can no longer be decrypted (for example after PEANUT_ENCRYPTION_KEY or the WordPress salts changed); every webhook from that source is rejected until you set a new secret', 'peanut-suite') . '</li>
             </ul>
         ';
     }
