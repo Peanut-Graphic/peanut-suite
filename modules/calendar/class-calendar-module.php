@@ -131,8 +131,18 @@ class Calendar_Module {
         ]);
     }
 
+    /**
+     * Every calendar route is an administrator surface.
+     *
+     * The events / ideas tables are one shared site-wide editorial calendar
+     * (no per-row ownership scoping on read, update or delete), the post
+     * listing includes other authors' draft and scheduled titles, and both
+     * the Content Calendar admin page and the AJAX save handler already
+     * require manage_options. edit_posts let any Contributor read, rewrite
+     * and delete everyone's entries over REST.
+     */
     public function admin_permission(): bool {
-        return current_user_can('edit_posts');
+        return current_user_can('manage_options');
     }
 
     /**

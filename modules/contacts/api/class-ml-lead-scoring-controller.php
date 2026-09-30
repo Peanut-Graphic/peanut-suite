@@ -49,7 +49,7 @@ class ML_Lead_Scoring_Controller {
 			array(
 				'methods'             => 'POST',
 				'callback'            => array( $this, 'score_lead' ),
-				'permission_callback' => array( $this, 'check_permission' ),
+				'permission_callback' => array( $this, 'check_admin_permission' ),
 				'args'                => array(
 					'email'   => array(
 						'type' => 'string',
@@ -71,7 +71,7 @@ class ML_Lead_Scoring_Controller {
 			array(
 				'methods'             => 'POST',
 				'callback'            => array( $this, 'batch_score_leads' ),
-				'permission_callback' => array( $this, 'check_permission' ),
+				'permission_callback' => array( $this, 'check_admin_permission' ),
 				'args'                => array(
 					'contacts' => array(
 						'required' => true,
@@ -88,7 +88,7 @@ class ML_Lead_Scoring_Controller {
 			array(
 				'methods'             => 'GET',
 				'callback'            => array( $this, 'get_top_leads' ),
-				'permission_callback' => array( $this, 'check_permission' ),
+				'permission_callback' => array( $this, 'check_admin_permission' ),
 				'args'                => array(
 					'limit' => array(
 						'type'    => 'integer',
@@ -305,6 +305,8 @@ class ML_Lead_Scoring_Controller {
 	 * @return bool
 	 */
 	public function check_permission(): bool {
+		// Only the service-health route uses this gate. Scored / profiled
+		// visitor and contact data requires check_admin_permission().
 		return current_user_can( 'read' );
 	}
 
