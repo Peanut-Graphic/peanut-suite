@@ -30,6 +30,11 @@ delete_option('peanut_settings');
 delete_option('peanut_active_modules');
 delete_option('peanut_db_version');
 delete_option('peanut_settings_secrets_version');
+// Third-party secrets must not survive uninstall.
+delete_option('peanut_ga_credentials');
+delete_option('peanut_ga_credentials_secrets_version');
+delete_option('peanut_webhook_secrets');
+delete_option('peanut_webhook_secrets_version');
 
 // Remove transients
 delete_transient('peanut_license_data');

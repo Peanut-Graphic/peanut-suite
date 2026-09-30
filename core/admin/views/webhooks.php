@@ -34,7 +34,18 @@ if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_name)) === $tabl
 }
 
 // Get webhook URL
-$webhook_url = rest_url(PEANUT_API_NAMESPACE . '/webhooks/incoming');
+$webhook_url = rest_url(PEANUT_API_NAMESPACE . '/webhooks/receive');
+
+// Signing status (never includes a secret): which sources post unsigned.
+$unsigned_sources = [];
+if (class_exists('Webhooks_Signature') && class_exists('Webhooks_Database')) {
+    $seen_sources = Webhooks_Database::get_sources();
+    foreach (Webhooks_Signature::sources_status(is_array($seen_sources) ? $seen_sources : []) as $signing_row) {
+        if ($signing_row['seen'] && !$signing_row['signed']) {
+            $unsigned_sources[] = $signing_row['source'];
+        }
+    }
+}
 ?>
 
 <div class="peanut-webhooks-page">
@@ -100,6 +111,19 @@ $webhook_url = rest_url(PEANUT_API_NAMESPACE . '/webhooks/incoming');
                     <?php esc_html_e('Copy', 'peanut-suite'); ?>
                 </button>
             </div>
+            <?php if (!empty($unsigned_sources)): ?>
+                <div class="notice notice-warning inline" role="status">
+                    <p>
+                        <?php
+                        printf(
+                            /* translators: %s: comma-separated webhook source names */
+                            esc_html__('Unsigned sources: %s. Anyone who knows this URL can post as them. Set a signing secret per source on the Webhooks page of the Peanut Suite app.', 'peanut-suite'),
+                            '<strong>' . esc_html(implode(', ', $unsigned_sources)) . '</strong>'
+                        );
+                        ?>
+                    </p>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 

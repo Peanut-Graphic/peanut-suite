@@ -368,6 +368,30 @@ export interface WebhookFilters {
   statuses: WebhookStatus[];
 }
 
+/** Per-source signing status. Never carries a secret. */
+export interface WebhookSigningSource {
+  source: string;
+  /** A signing secret is configured: unsigned webhooks are rejected. */
+  signed: boolean;
+  /** False when a configured secret cannot be decrypted (everything is rejected). */
+  readable: boolean;
+  /** This source has delivered at least one webhook. */
+  seen: boolean;
+}
+
+export interface WebhookSigningStatus {
+  endpoint_url: string;
+  sources: WebhookSigningSource[];
+  unsigned_seen_sources: string[];
+}
+
+export interface WebhookSigningSecretResult {
+  source: string;
+  signed: boolean;
+  /** Present only in the response to a Generate request; shown once. */
+  secret?: string;
+}
+
 // Visitor Types
 export interface Visitor {
   id: number;
