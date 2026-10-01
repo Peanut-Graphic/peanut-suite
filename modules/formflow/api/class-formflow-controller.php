@@ -13,6 +13,8 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+require_once dirname(__DIR__, 3) . '/core/services/class-peanut-webhook-replay-guard.php';
+
 class FormFlow_Controller {
 
     /**
@@ -87,6 +89,9 @@ class FormFlow_Controller {
      *
      *  - Secret configured: a valid X-FFFL-Signature is REQUIRED. Missing -> 401,
      *    wrong -> 403. Nothing else (source header, Referer, IP) is trusted.
+     *    The signed body's "timestamp" (FormFlow Lite sends current_time('c'))
+     *    must be within the replay tolerance window (401 otherwise), and a
+     *    signed delivery is accepted once (a replay gets 409).
      *  - No secret configured: rejected (401), unless the site explicitly opts
      *    in via the `peanut_formflow_allow_unsigned_loopback` option, in which
      *    case only a loopback / same-address request is accepted. The Referer
@@ -119,7 +124,7 @@ class FormFlow_Controller {
                 );
             }
 
-            return true;
+            return $this->verify_freshness($request->get_body());
         }
 
         if (get_option(self::ALLOW_UNSIGNED_LOOPBACK_OPTION, false) && $this->is_loopback_request()) {
@@ -131,6 +136,49 @@ class FormFlow_Controller {
             'Webhook authentication required',
             ['status' => 401]
         );
+    }
+
+    /**
+     * Replay protection for a signed FormFlow delivery: the signed body's
+     * "timestamp" must be within the tolerance window, and the delivery must
+     * not have been accepted before. The X-FFFL-Timestamp header is not
+     * signed, so it is not used.
+     *
+     * @param string $body Raw (signed) request body.
+     * @return true|WP_Error
+     */
+    private function verify_freshness(string $body): bool|WP_Error {
+        $decoded = json_decode($body, true);
+        $timestamp = Peanut_Webhook_Replay_Guard::parse_timestamp(is_array($decoded) ? ($decoded['timestamp'] ?? null) : null);
+
+        $reason = Peanut_Webhook_Replay_Guard::check_timestamp($timestamp);
+        if ($reason !== Peanut_Webhook_Replay_Guard::OK) {
+            return new WP_Error(
+                $reason,
+                'Webhook timestamp missing or outside the allowed window',
+                ['status' => 401]
+            );
+        }
+
+        try {
+            $first = Peanut_Webhook_Replay_Guard::claim('formflow-event', $timestamp . '.' . hash('sha256', $body));
+        } catch (RuntimeException $e) {
+            return new WP_Error(
+                'replay_check_unavailable',
+                'Webhook could not be checked for replay',
+                ['status' => 503]
+            );
+        }
+
+        if (!$first) {
+            return new WP_Error(
+                'duplicate_delivery',
+                'Webhook delivery already received',
+                ['status' => 409]
+            );
+        }
+
+        return true;
     }
 
     /**

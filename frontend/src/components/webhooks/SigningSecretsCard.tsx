@@ -20,7 +20,7 @@ const senderHelp: Record<string, string> = {
 };
 
 const genericHelp =
-  'Paste it into the sender\'s webhook secret setting. The sender must sign the raw request body with HMAC-SHA256 and send the hex digest as X-Webhook-Signature: sha256=<digest>, and name itself with an X-Webhook-Source header or a "source" field.';
+  'Paste it into the sender\'s webhook secret setting and point the sender at the endpoint URL with this source name in place of {source}. The sender must sign the raw request body with HMAC-SHA256: send the current Unix time as X-Peanut-Timestamp, sign "<timestamp>.<body>", and send the hex digest as X-Webhook-Signature: sha256=<digest>. Deliveries more than 5 minutes old, or repeated, are rejected.';
 
 function statusBadge(row: WebhookSigningSource) {
   if (row.signed && !row.readable) {
@@ -90,6 +90,7 @@ export default function SigningSecretsCard() {
 
   const newSourceValid = SOURCE_PATTERN.test(newSource);
   const unsigned = status?.unsigned_seen_sources ?? [];
+  const endpointUrl = status?.source_endpoint_url ?? status?.endpoint_url ?? '';
 
   return (
     <Card className="mb-6">
@@ -112,14 +113,14 @@ export default function SigningSecretsCard() {
         </div>
       )}
 
-      {status?.endpoint_url && (
+      {endpointUrl && (
         <div className="mt-4">
           <span className="block text-sm font-medium text-slate-700 dark:text-slate-300">Endpoint URL</span>
           <div className="mt-1 flex items-center gap-2">
             <code className="flex-1 break-all rounded-lg bg-slate-100 p-2 text-sm dark:bg-slate-800">
-              {status.endpoint_url}
+              {endpointUrl}
             </code>
-            <Button variant="ghost" size="sm" onClick={() => copy(status.endpoint_url)} title="Copy endpoint URL">
+            <Button variant="ghost" size="sm" onClick={() => copy(endpointUrl)} title="Copy endpoint URL">
               <Copy className="h-4 w-4" aria-hidden="true" />
               <span className="sr-only">Copy endpoint URL</span>
             </Button>
@@ -218,9 +219,13 @@ export default function SigningSecretsCard() {
             arrives as <code>unknown</code>. Put its secret on <code>unknown</code>.
           </li>
           <li>
-            <strong>Anything else</strong>: HMAC-SHA256 of the raw body, hex, sent as{' '}
-            <code>X-Webhook-Signature: sha256=&lt;digest&gt;</code>; name the source with an{' '}
-            <code>X-Webhook-Source</code> header or a <code>source</code> field.
+            <strong>Anything else</strong>: post to the endpoint URL with the source name in place of{' '}
+            <code>{'{source}'}</code>. Send the Unix time as <code>X-Peanut-Timestamp</code> and the hex HMAC-SHA256
+            of <code>&lt;timestamp&gt;.&lt;raw body&gt;</code> as <code>X-Webhook-Signature: sha256=&lt;digest&gt;</code>.
+          </li>
+          <li>
+            Signed deliveries must be no more than 5 minutes old (FormFlow&apos;s signed <code>timestamp</code> field
+            counts), and each one is accepted once; a replay is acknowledged but not processed again.
           </li>
           <li>Secrets are stored encrypted. A generated secret is shown once; rotating replaces it immediately.</li>
         </ul>

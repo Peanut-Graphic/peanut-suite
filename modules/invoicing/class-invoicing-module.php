@@ -26,6 +26,7 @@ class Invoicing_Module {
     private function load_dependencies(): void {
         require_once __DIR__ . '/class-invoicing-database.php';
         require_once __DIR__ . '/class-invoicing-stripe.php';
+        require_once dirname(__DIR__, 2) . '/core/services/class-peanut-webhook-replay-guard.php';
     }
 
     /**
@@ -82,9 +83,24 @@ class Invoicing_Module {
             return new \WP_REST_Response(['error' => 'Webhook secret not configured'], 400);
         }
 
+        $claim_id = null;
+
         try {
             $stripe = new Invoicing_Stripe();
-            $event = $stripe->construct_webhook_event($payload, $sig_header, $webhook_secret);
+            $event = $stripe->construct_webhook_event((string) $payload, (string) $sig_header, $webhook_secret);
+
+            // construct_webhook_event() enforces Stripe's signed t= within
+            // 300 s; the signed event id makes each event count once. A
+            // replay (or a Stripe retry of an event already handled) is
+            // acknowledged with 200 so Stripe stops retrying.
+            $event_id = isset($event->id) && is_string($event->id) ? $event->id : '';
+            if ($event_id === '') {
+                throw new \Exception('Missing event id');
+            }
+            if (!Peanut_Webhook_Replay_Guard::claim('stripe-invoicing', $event_id, DAY_IN_SECONDS)) {
+                return new \WP_REST_Response(['received' => true, 'duplicate' => true], 200);
+            }
+            $claim_id = $event_id;
 
             // Handle the event
             switch ($event->type) {
@@ -108,6 +124,10 @@ class Invoicing_Module {
             return new \WP_REST_Response(['received' => true], 200);
 
         } catch (\Exception $e) {
+            if ($claim_id !== null) {
+                // Handler failed: let Stripe's retry through.
+                Peanut_Webhook_Replay_Guard::release('stripe-invoicing', $claim_id);
+            }
             peanut_log_error('Stripe webhook error: ' . $e->getMessage(), 'error', 'invoicing');
             return new \WP_REST_Response(['error' => $e->getMessage()], 400);
         }

@@ -100,7 +100,12 @@ namespace PeanutSuite\Tests\Regression {
         public array $inserts = [];
         public array $sources = [];
 
-        public function prepare($query, ...$args) { return $query; }
+        public string $options = 'wp_options';
+        /** Replay-guard claims (option names) recorded by INSERT IGNORE. */
+        public array $claims = [];
+
+        public function prepare($query, ...$args) { return $query . "\0" . json_encode($args); }
+        public function esc_like($text) { return addcslashes((string) $text, '_%\\'); }
         public function get_col($sql) { return str_contains($sql, 'DISTINCT source') ? $this->sources : []; }
         public function get_var($sql) { return null; }
         public function get_row($sql, $output = null) { return null; }
@@ -111,7 +116,22 @@ namespace PeanutSuite\Tests\Regression {
             return 1;
         }
         public function update($table, $data, $where, $format = null, $where_format = null) { return 1; }
-        public function query($sql) { return 0; }
+        public function query($sql) {
+            [$query, $args] = array_pad(explode("\0", (string) $sql, 2), 2, '[]');
+            $args = json_decode($args, true) ?: [];
+            if (str_starts_with($query, 'INSERT IGNORE INTO wp_options')) {
+                if (isset($this->claims[$args[0]])) {
+                    return 0;
+                }
+                $this->claims[$args[0]] = true;
+                return 1;
+            }
+            if (str_starts_with($query, 'DELETE FROM wp_options WHERE option_name = ')) {
+                unset($this->claims[$args[0]]);
+                return 1;
+            }
+            return 0;
+        }
     }
 
     final class WebhookSigningSecretsRegressionTest extends TestCase
@@ -306,7 +326,8 @@ namespace PeanutSuite\Tests\Regression {
         public function test_formflow_lite_signature_header_verifies(): void
         {
             Webhooks_Signature::set_secret('formflow-lite', 'formflow-shared-secret-abcdef');
-            $payload = ['source' => 'formflow-lite', 'event' => 'form.submitted'];
+            // FormFlow Lite signs a body that carries timestamp = current_time('c').
+            $payload = ['source' => 'formflow-lite', 'event' => 'form.submitted', 'timestamp' => gmdate('c')];
             $_SERVER['HTTP_X_FFFL_SIGNATURE'] = hash_hmac('sha256', json_encode($payload), 'formflow-shared-secret-abcdef');
 
             $this->assertAccepted($this->receive($payload));
@@ -316,7 +337,7 @@ namespace PeanutSuite\Tests\Regression {
         {
             // FormFlow Pro sends no source, so it arrives as "unknown".
             Webhooks_Signature::set_secret('unknown', 'formflow-pro-secret-abcdef');
-            $payload = ['event' => 'form.submitted', 'data' => ['a' => 1]];
+            $payload = ['event' => 'form.submitted', 'data' => ['a' => 1], 'timestamp' => gmdate('c')];
             $_SERVER['HTTP_X_ISF_SIGNATURE'] = hash_hmac('sha256', json_encode($payload), 'formflow-pro-secret-abcdef');
 
             $this->assertAccepted($this->receive($payload));
@@ -355,7 +376,7 @@ namespace PeanutSuite\Tests\Regression {
         public function test_legacy_plaintext_secret_still_verifies(): void
         {
             update_option('peanut_webhook_secrets', ['stripe' => 'whsec_configured']);
-            $payload = ['source' => 'stripe', 'event' => 'x'];
+            $payload = ['source' => 'stripe', 'event' => 'x', 'timestamp' => time()];
             $_SERVER['HTTP_X_WEBHOOK_SIGNATURE'] = 'sha256=' . hash_hmac('sha256', json_encode($payload), 'whsec_configured');
 
             $this->assertAccepted($this->receive($payload));
