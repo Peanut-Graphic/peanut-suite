@@ -1,5 +1,12 @@
 ## Unreleased
 
+## 4.3.0
+
+### Upgrade notes
+- **FormFlow events need a signature.** `POST /formflow/event` now rejects unsigned requests unless the FormFlow Lite secret (`fffl_peanut_webhook_secret`) is set, or the site opts in to loopback-only unsigned events with the `peanut_formflow_allow_unsigned_loopback` option. Sites that send FormFlow events with no secret configured stop receiving them until one of the two is set.
+- **Narrower access for non-admins.** Calendar, ML lead-scoring and segmentation data, and the webhooks admin routes now require `manage_options`. Short-link creation requires `peanut_access`. Peanut accounts are no longer auto-created for non-admins, so users who reached the Suite app only through that auto-creation need a team admin to add them.
+- **Rotate exposed keys on open-registration sites.** Before this release any logged-in user could read the Stripe secret key and webhook secret, the GA4 API secret and the Mailchimp and ConvertKit keys through `GET /peanut/v1/settings`. Rotate them on any site where untrusted users can register.
+
 ### Security
 - **Settings API no longer exposes credentials to non-admins.** `GET /peanut/v1/settings` only required a logged-in user with a REST nonce, so any Subscriber or customer account could read the whole `peanut_settings` option, including the Stripe secret key and webhook secret, the GA4 Measurement Protocol API secret, and the Mailchimp and ConvertKit keys. The read route now requires `manage_options`, the same as writes. Those six secrets are also write-only over REST, even for admins: responses return `""` plus a `<key>_set` flag, and a blank submitted value keeps the stored secret, so a load-then-save cannot wipe a live key. Encrypting them at rest is a follow-up, because each integration still reads them as plaintext.
 
