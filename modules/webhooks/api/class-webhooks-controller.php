@@ -17,7 +17,18 @@ class Webhooks_Controller extends Peanut_REST_Controller {
      * Register routes
      */
     public function register_routes(): void {
-        // Public endpoint: Receive webhooks (no auth required, signature verified)
+        // Public endpoint: receive webhooks for one source. The source is
+        // bound by the route; the request body/headers cannot choose it.
+        // (No auth required; signature verified when the source has a secret.)
+        register_rest_route($this->namespace, '/' . $this->rest_base . '/receive/(?P<source>[A-Za-z0-9._-]{1,64})', [
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback' => [$this, 'receive_source_webhook'],
+            'permission_callback' => '__return_true', // Public endpoint
+        ]);
+
+        // Deprecated public endpoint: the sender names its source in an
+        // X-Webhook-Source header or a "source" body field. Kept so existing
+        // senders keep working; see receive_webhook().
         register_rest_route($this->namespace, '/' . $this->rest_base . '/receive', [
             'methods' => WP_REST_Server::CREATABLE,
             'callback' => [$this, 'receive_webhook'],
@@ -94,9 +105,76 @@ class Webhooks_Controller extends Peanut_REST_Controller {
     }
 
     /**
-     * Receive incoming webhook (public endpoint)
+     * Receive a webhook on the per-source route (public endpoint).
+     *
+     * The source comes from the route only. A request that names a different
+     * source in its X-Webhook-Source header or body "source" field is refused
+     * (400): a payload signed for one source cannot be re-posted under
+     * another source's route.
+     */
+    public function receive_source_webhook(WP_REST_Request $request): WP_REST_Response|WP_Error {
+        $source = (string) $request->get_param('source');
+        if (!Webhooks_Signature::is_valid_source($source)) {
+            return $this->error(__('Invalid source.', 'peanut-suite'), 'invalid_source', 400);
+        }
+
+        $payload = $request->get_json_params();
+        if (is_array($payload) && !empty($payload)) {
+            $named = Webhooks_Signature::get_source_from_request($payload);
+            if ($named !== 'unknown' && $named !== $source) {
+                return $this->error(
+                    __('The request names a different source than this endpoint.', 'peanut-suite'),
+                    'source_mismatch',
+                    400
+                );
+            }
+        }
+
+        return $this->handle_delivery($request, $source);
+    }
+
+    /**
+     * Receive a webhook on the deprecated legacy route (public endpoint).
+     *
+     * The sender names its source (X-Webhook-Source header, else the body
+     * "source" field, else "unknown"). Kept for senders configured before
+     * per-source routes existed. A request whose header and body name
+     * different sources is refused: the header is not covered by a body
+     * signature, so it must not relabel a signed body. A named source that has
+     * a secret is only accepted with a valid signature under that secret, so
+     * the label of a signed delivery is proven, not chosen. New senders should
+     * use POST /webhooks/receive/{source}.
      */
     public function receive_webhook(WP_REST_Request $request): WP_REST_Response|WP_Error {
+        $payload = $request->get_json_params();
+        $payload = is_array($payload) ? $payload : [];
+
+        $header = isset($_SERVER['HTTP_X_WEBHOOK_SOURCE']) && is_string($_SERVER['HTTP_X_WEBHOOK_SOURCE'])
+            ? sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WEBHOOK_SOURCE']))
+            : '';
+        $body = isset($payload['source']) && is_string($payload['source'])
+            ? sanitize_text_field($payload['source'])
+            : '';
+        if ($header !== '' && $body !== '' && $header !== $body) {
+            return $this->error(
+                __('The X-Webhook-Source header and the body source disagree.', 'peanut-suite'),
+                'source_mismatch',
+                400
+            );
+        }
+
+        return $this->handle_delivery($request, Webhooks_Signature::get_source_from_request($payload));
+    }
+
+    /**
+     * Verify, dedupe, store and dispatch one delivery for a bound source.
+     *
+     * Signed sources (a secret is configured): the signature must cover a
+     * timestamp within the tolerance window (401 otherwise), and each signed
+     * delivery is accepted once; a replay gets 200 {duplicate: true} and is
+     * neither stored nor dispatched again.
+     */
+    private function handle_delivery(WP_REST_Request $request, string $source): WP_REST_Response|WP_Error {
         // Rate limiting
         if (!Peanut_Security::check_rate_limit('webhook_receive', 100, 60)) {
             return $this->error(
@@ -107,10 +185,10 @@ class Webhooks_Controller extends Peanut_REST_Controller {
         }
 
         // Get raw body for signature verification
-        $raw_body = $request->get_body();
+        $raw_body = (string) $request->get_body();
         $payload = $request->get_json_params();
 
-        if (empty($payload)) {
+        if (empty($payload) || !is_array($payload)) {
             return $this->error(
                 __('Invalid or empty payload.', 'peanut-suite'),
                 'invalid_payload',
@@ -118,28 +196,53 @@ class Webhooks_Controller extends Peanut_REST_Controller {
             );
         }
 
-        // Get source and event
-        $source = Webhooks_Signature::get_source_from_request($payload);
         $event = sanitize_text_field($payload['event'] ?? 'unknown');
 
         // Verify the signature whenever a secret is configured for this source.
-        // A missing signature header is a failure, not a skip: previously the
-        // check only ran when BOTH a secret and a header were present, so an
-        // attacker bypassed it by omitting the header.
-        //
-        // Sources with NO secret configured are still accepted unsigned (the
-        // pre-existing behavior; unconfigured sites keep working). Admins set
-        // a per-source secret on the Webhooks page (POST /webhooks/signing).
-        // A configured secret that cannot be decrypted fails closed.
+        // A missing signature header is a failure, not a skip. Sources with NO
+        // secret configured are still accepted unsigned (the pre-existing
+        // behavior). A configured secret that cannot be decrypted fails closed.
         $signature = Webhooks_Signature::get_signature_from_headers();
+        $claim = null;
 
         if (Webhooks_Signature::has_secret($source)) {
-            if (empty($signature) || !Webhooks_Signature::verify($raw_body, (string) $signature, $source)) {
+            $result = Webhooks_Signature::verify_delivery(
+                $raw_body,
+                (string) $signature,
+                $source,
+                Webhooks_Signature::get_timestamp_from_headers(),
+                $payload
+            );
+
+            if (!$result['ok']) {
+                $messages = [
+                    Peanut_Webhook_Replay_Guard::MISSING => __('The webhook signature does not cover a timestamp.', 'peanut-suite'),
+                    Peanut_Webhook_Replay_Guard::STALE => __('The webhook timestamp is too old.', 'peanut-suite'),
+                    Peanut_Webhook_Replay_Guard::FUTURE => __('The webhook timestamp is in the future.', 'peanut-suite'),
+                ];
                 return $this->error(
-                    __('Invalid or missing webhook signature.', 'peanut-suite'),
-                    'invalid_signature',
+                    $messages[$result['error']] ?? __('Invalid or missing webhook signature.', 'peanut-suite'),
+                    $result['error'],
                     401
                 );
+            }
+
+            // Dedupe on signed material only: the signed timestamp and body.
+            $claim = ['receive:' . $source, $result['timestamp'] . '.' . hash('sha256', $raw_body)];
+            try {
+                $first = Peanut_Webhook_Replay_Guard::claim($claim[0], $claim[1]);
+            } catch (RuntimeException $e) {
+                return $this->error(
+                    __('The webhook could not be checked for replay. Please retry.', 'peanut-suite'),
+                    'replay_check_unavailable',
+                    503
+                );
+            }
+            if (!$first) {
+                return $this->success([
+                    'received' => true,
+                    'duplicate' => true,
+                ], 200);
             }
         }
 
@@ -157,6 +260,10 @@ class Webhooks_Controller extends Peanut_REST_Controller {
         ]);
 
         if (!$webhook_id) {
+            if ($claim !== null) {
+                // Let the sender's retry through.
+                Peanut_Webhook_Replay_Guard::release($claim[0], $claim[1]);
+            }
             return $this->error(
                 __('Failed to store webhook.', 'peanut-suite'),
                 'storage_failed',
@@ -193,6 +300,9 @@ class Webhooks_Controller extends Peanut_REST_Controller {
 
         return $this->success([
             'endpoint_url' => rest_url(PEANUT_API_NAMESPACE . '/webhooks/receive'),
+            // Preferred: one URL per source; replace {source} with the name.
+            'source_endpoint_url' => rest_url(PEANUT_API_NAMESPACE . '/webhooks/receive/{source}'),
+            'timestamp_tolerance' => Peanut_Webhook_Replay_Guard::tolerance(),
             'sources' => $sources,
             'unsigned_seen_sources' => $unsigned_seen,
         ]);

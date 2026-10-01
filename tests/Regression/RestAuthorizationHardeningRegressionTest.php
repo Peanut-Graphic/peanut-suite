@@ -132,6 +132,22 @@ namespace PeanutSuite\Tests\Regression {
             $this->insert_id = count($this->inserts);
             return 1;
         }
+
+        public string $options = 'wp_options';
+        /** Replay-guard claims (option names) recorded by INSERT IGNORE. */
+        public array $claims = [];
+
+        public function esc_like($text) { return addcslashes((string) $text, '_%\\'); }
+        public function query($sql) {
+            if (preg_match("/^INSERT IGNORE INTO wp_options .* VALUES \\('([^']+)'/", (string) $sql, $m)) {
+                if (isset($this->claims[$m[1]])) {
+                    return 0;
+                }
+                $this->claims[$m[1]] = true;
+                return 1;
+            }
+            return 0;
+        }
     }
 
     final class RestAuthorizationHardeningRegressionTest extends TestCase
@@ -320,7 +336,7 @@ namespace PeanutSuite\Tests\Regression {
         public function test_receive_accepts_a_valid_signature(): void
         {
             update_option('peanut_webhook_secrets', ['stripe' => 'whsec_configured']);
-            $request = $this->webhookRequest(['source' => 'stripe', 'event' => 'x']);
+            $request = $this->webhookRequest(['source' => 'stripe', 'event' => 'x', 'timestamp' => time()]);
             $_SERVER['HTTP_X_WEBHOOK_SIGNATURE'] = 'sha256=' . hash_hmac('sha256', $request->get_body(), 'whsec_configured');
 
             $result = (new \Webhooks_Controller())->receive_webhook($request);
@@ -371,7 +387,7 @@ namespace PeanutSuite\Tests\Regression {
         public function test_formflow_event_accepts_the_formflow_lite_signature_format(): void
         {
             update_option('fffl_peanut_webhook_secret', 'ff-secret');
-            $body = '{"event":"enrollment.completed"}';
+            $body = json_encode(['event' => 'enrollment.completed', 'timestamp' => gmdate('c')]);
 
             // FormFlow Lite (includes/class-webhook-handler.php::send) sends a bare
             // hex hash_hmac('sha256', $json_payload, $secret) in X-FFFL-Signature.

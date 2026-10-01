@@ -37,6 +37,7 @@ class Peanut_Core {
         require_once PEANUT_PLUGIN_DIR . 'core/services/class-peanut-security.php';
         require_once PEANUT_PLUGIN_DIR . 'core/services/class-peanut-license.php';
         require_once PEANUT_PLUGIN_DIR . 'core/services/class-peanut-integrations.php';
+        require_once PEANUT_PLUGIN_DIR . 'core/services/class-peanut-webhook-replay-guard.php';
 
         // Database
         require_once PEANUT_PLUGIN_DIR . 'core/database/class-peanut-database.php';
@@ -454,6 +455,7 @@ class Peanut_Core {
 
         // Cleanup expired data
         Peanut_Database::cleanup_expired_cache();
+        Peanut_Webhook_Replay_Guard::purge_expired();
 
         // Let modules run maintenance
         do_action('peanut_daily_maintenance_tasks');

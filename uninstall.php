@@ -35,6 +35,9 @@ delete_option('peanut_ga_credentials');
 delete_option('peanut_ga_credentials_secrets_version');
 delete_option('peanut_webhook_secrets');
 delete_option('peanut_webhook_secrets_version');
+// Webhook replay-protection claims (peanut_whr_*).
+require_once __DIR__ . '/core/services/class-peanut-webhook-replay-guard.php';
+Peanut_Webhook_Replay_Guard::purge_all();
 
 // Remove transients
 delete_transient('peanut_license_data');

@@ -380,7 +380,12 @@ export interface WebhookSigningSource {
 }
 
 export interface WebhookSigningStatus {
+  /** Deprecated legacy endpoint; the sender names its source in the request. */
   endpoint_url: string;
+  /** Per-source endpoint; replace {source} with the source name. Preferred. */
+  source_endpoint_url?: string;
+  /** Seconds a signed timestamp may differ from the server clock. */
+  timestamp_tolerance?: number;
   sources: WebhookSigningSource[];
   unsigned_seen_sources: string[];
 }

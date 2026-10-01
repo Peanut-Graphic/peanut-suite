@@ -33,8 +33,9 @@ if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_name)) === $tabl
     $stats['failed'] = (int) $wpdb->get_var("SELECT COUNT(*) FROM $table_name WHERE status = 'failed'");
 }
 
-// Get webhook URL
-$webhook_url = rest_url(PEANUT_API_NAMESPACE . '/webhooks/receive');
+// Webhook URL: one per source (POST /webhooks/receive/{source}). The source
+// is bound by the URL; the request cannot choose it.
+$webhook_url = trailingslashit(rest_url(PEANUT_API_NAMESPACE . '/webhooks/receive'));
 
 // Signing status (never includes a secret): which sources post unsigned.
 $unsigned_sources = [];
@@ -103,9 +104,9 @@ if (class_exists('Webhooks_Signature') && class_exists('Webhooks_Database')) {
             <span class="peanut-badge peanut-badge-success"><?php esc_html_e('Ready', 'peanut-suite'); ?></span>
         </div>
         <div class="peanut-webhook-url-body">
-            <p><?php esc_html_e('Use this URL in your form services and integrations to send data to Peanut Suite:', 'peanut-suite'); ?></p>
+            <p><?php esc_html_e('Use this URL in your form services and integrations to send data to Peanut Suite. Add the sender\'s source name to the end, for example formflow-lite:', 'peanut-suite'); ?></p>
             <div class="peanut-url-copy-box">
-                <code id="peanut-webhook-url"><?php echo esc_url($webhook_url); ?></code>
+                <code id="peanut-webhook-url"><?php echo esc_html($webhook_url); ?>{source}</code>
                 <button type="button" class="button peanut-copy-btn" data-copy="<?php echo esc_attr($webhook_url); ?>">
                     <span class="dashicons dashicons-clipboard"></span>
                     <?php esc_html_e('Copy', 'peanut-suite'); ?>
@@ -505,7 +506,7 @@ jQuery(document).ready(function($) {
         };
 
         $.ajax({
-            url: '<?php echo esc_url($webhook_url); ?>',
+            url: '<?php echo esc_url($webhook_url . 'test'); ?>',
             method: 'POST',
             contentType: 'application/json',
             data: JSON.stringify(payload),
