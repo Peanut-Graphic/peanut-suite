@@ -63,3 +63,13 @@ test('keeps qs above both audited security floors', () => {
     packageLock.packages['node_modules/qs'].version.localeCompare('6.16.0', undefined, { numeric: true }) >= 0,
   );
 });
+
+test('keeps @grpc/grpc-js at or above the GHSA-m9gg-hp2v-232j fix', () => {
+  const packageLock = JSON.parse(fs.readFileSync(new URL('../package-lock.json', import.meta.url)));
+
+  // 1.14.4 leaked handler error messages to clients and failed the production
+  // audit floor on main; 1.14.5 is the first fixed release.
+  assert.ok(
+    packageLock.packages['node_modules/@grpc/grpc-js'].version.localeCompare('1.14.5', undefined, { numeric: true }) >= 0,
+  );
+});
