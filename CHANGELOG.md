@@ -1,4 +1,4 @@
-## Unreleased
+## 4.3.1
 
 ### Upgrade notes
 - **Signed webhooks need a signed timestamp.** A webhook from a source that has a signing secret must now carry a timestamp its signature covers, within 5 minutes of the server clock: either sign `<unix ts>.<raw body>` and send the same `<unix ts>` as `X-Peanut-Timestamp`, or include a `timestamp` field (Unix seconds or ISO 8601) in the signed JSON body. FormFlow Lite and FormFlow Pro already put a signed `timestamp` in every body, so they need no change. A custom sender that signs only the body and has no `timestamp` field is now rejected (401).
