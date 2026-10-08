@@ -73,3 +73,27 @@ test('keeps @grpc/grpc-js at or above the GHSA-m9gg-hp2v-232j fix', () => {
     packageLock.packages['node_modules/@grpc/grpc-js'].version.localeCompare('1.14.5', undefined, { numeric: true }) >= 0,
   );
 });
+
+test('keeps @fastify/busboy at or above the GHSA-gxm5-99cw-xjw9 fix', () => {
+  const packageLock = JSON.parse(fs.readFileSync(new URL('../package-lock.json', import.meta.url)));
+
+  // 3.2.1 allowed CRLF injection through multipart Content-Disposition
+  // filename and name, and failed the production audit floor on main;
+  // 3.2.2 is the first fixed release.
+  assert.ok(
+    packageLock.packages['node_modules/@fastify/busboy'].version.localeCompare('3.2.2', undefined, { numeric: true }) >= 0,
+  );
+});
+
+test('keeps proxy-addr at or above the GHSA-jqcg-44mw-7w3h fix', () => {
+  const packageLock = JSON.parse(fs.readFileSync(new URL('../package-lock.json', import.meta.url)));
+
+  // 2.0.7 let an IPv4-mapped IPv6 address spoof a trusted subnet (critical)
+  // and failed the production audit floor on main; 2.0.8 is the first fixed
+  // release. Every proxy-addr in the tree must be fixed, not just the hoisted one.
+  for (const [path, entry] of Object.entries(packageLock.packages)) {
+    if (path.endsWith('node_modules/proxy-addr')) {
+      assert.ok(entry.version.localeCompare('2.0.8', undefined, { numeric: true }) >= 0, path);
+    }
+  }
+});
