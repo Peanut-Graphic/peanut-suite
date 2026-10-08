@@ -1,4 +1,4 @@
-## Unreleased
+## 4.3.2
 
 ### Fixed
 - Form-view tracking resolves the global security class instead of fatally looking for it inside the Forms namespace. An offline actual-callback regression checks both rate-limit denial before writes and allowed tracking; the existing limiter policy is unchanged.
