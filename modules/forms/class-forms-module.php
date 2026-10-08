@@ -214,7 +214,7 @@ class Forms_Module {
      * Track form view
      */
     public function track_view(\WP_REST_Request $request): \WP_REST_Response {
-        if (!Peanut_Security::check_rate_limit('form_submit', 10, 60)) {
+        if (!\Peanut_Security::check_rate_limit('form_submit', 10, 60)) {
             return new \WP_REST_Response(['message' => 'Rate limit exceeded'], 429);
         }
 
