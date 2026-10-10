@@ -26,6 +26,21 @@ class Security_Module {
      */
     private array $settings = [];
 
+    /** Lifetime of a 2FA challenge (and its code), in seconds. */
+    public const TWO_FA_TTL = 600;
+
+    /** Wrong codes allowed per challenge before it is destroyed. */
+    public const TWO_FA_MAX_ATTEMPTS = 5;
+
+    /** "Resend code" uses allowed per challenge. */
+    public const TWO_FA_MAX_RESENDS = 3;
+
+    /** 2FA methods that are implemented. TOTP never was (see init_2fa_challenge). */
+    public const TWO_FA_METHODS = ['email'];
+
+    /** True while verify_2fa_code() re-fires wp_login for a verified user. */
+    private bool $completing_2fa = false;
+
     /**
      * Get singleton instance
      */
@@ -72,7 +87,7 @@ class Security_Module {
 
             // 2FA
             '2fa_enabled' => false,
-            '2fa_method' => 'email', // email, totp
+            '2fa_method' => 'email', // email only; TOTP is not implemented
             '2fa_roles' => ['administrator'],
         ];
     }
@@ -115,6 +130,8 @@ class Security_Module {
             add_action('wp_login', [$this, 'init_2fa_challenge'], 5, 2);
             add_action('login_form_2fa', [$this, 'render_2fa_form']);
             add_action('login_form_2fa_verify', [$this, 'verify_2fa_code']);
+            add_action('login_form_2fa_resend', [$this, 'resend_2fa_code']);
+            add_filter('login_message', [$this, 'filter_2fa_login_message']);
         }
 
         // Admin menu
@@ -490,31 +507,44 @@ class Security_Module {
 
     /**
      * Initialize 2FA challenge
+     *
+     * Runs on wp_login (priority 5) for a user whose role requires 2FA: logs
+     * the session back out, e-mails a one-time code and redirects to the code
+     * form. The challenge (user, code hash, attempt and resend counters,
+     * expiry) is one transient keyed by a random token, so a code is only
+     * valid for the login that requested it.
+     *
+     * Only e-mail codes are implemented. The "totp" method never had an
+     * enrollment flow or a verifier: with no secret it skipped 2FA entirely,
+     * and with one it locked the user out. A stored "totp" setting is now
+     * treated as e-mail codes (fail secure), and the settings refuse it.
      */
     public function init_2fa_challenge(string $username, WP_User $user): void {
-        // Check if user's role requires 2FA
-        if (!array_intersect($this->settings['2fa_roles'], $user->roles)) {
+        // verify_2fa_code() re-fires wp_login after a correct code; do not
+        // challenge that login again (it looped back to the code form).
+        if ($this->completing_2fa) {
             return;
         }
 
-        // Check if 2FA is set up for this user
-        $secret = get_user_meta($user->ID, 'peanut_2fa_secret', true);
-        if (empty($secret) && $this->settings['2fa_method'] === 'totp') {
-            return; // TOTP not set up
+        // Check if user's role requires 2FA
+        if (!array_intersect((array) ($this->settings['2fa_roles'] ?? ['administrator']), (array) $user->roles)) {
+            return;
         }
 
-        // Generate and send code for email method
-        if ($this->settings['2fa_method'] === 'email') {
-            $code = $this->generate_2fa_code($user->ID);
-            $this->send_2fa_email($user, $code);
-        }
+        $token = bin2hex(random_bytes(16));
+        $code = $this->generate_2fa_code();
+
+        $this->save_2fa_challenge($token, [
+            'user_id' => (int) $user->ID,
+            'code_hash' => $this->hash_2fa_code($code, $token),
+            'attempts' => 0,
+            'resends' => 0,
+            'expires' => time() + self::TWO_FA_TTL,
+        ]);
+        $this->send_2fa_email($user, $code);
 
         // Log user out and redirect to 2FA form
         wp_logout();
-
-        // Store user ID in transient for verification
-        $token = wp_generate_password(32, false);
-        set_transient('peanut_2fa_' . $token, $user->ID, 10 * MINUTE_IN_SECONDS);
 
         wp_safe_redirect(add_query_arg([
             'action' => '2fa',
@@ -524,12 +554,55 @@ class Security_Module {
     }
 
     /**
-     * Generate 2FA code
+     * A six-digit one-time code from the CSPRNG (random_int), not a predictable PRNG.
      */
-    private function generate_2fa_code(int $user_id): string {
-        $code = sprintf('%06d', mt_rand(0, 999999));
-        set_transient('peanut_2fa_code_' . $user_id, wp_hash($code), 10 * MINUTE_IN_SECONDS);
-        return $code;
+    private function generate_2fa_code(): string {
+        return sprintf('%06d', random_int(0, 999999));
+    }
+
+    /**
+     * Keyed hash of a code, bound to its challenge token.
+     */
+    private function hash_2fa_code(string $code, string $token): string {
+        return hash_hmac('sha256', $code . '|' . $token, wp_salt('auth'));
+    }
+
+    private static function challenge_key(string $token): string {
+        return 'peanut_2fa_' . $token;
+    }
+
+    /**
+     * Token from request input: 32 lowercase hex characters, else ''.
+     */
+    private static function clean_2fa_token($token): string {
+        $token = is_string($token) ? strtolower(trim(wp_unslash($token))) : '';
+        return preg_match('/^[a-f0-9]{32}$/', $token) ? $token : '';
+    }
+
+    /**
+     * The live challenge for a token, or null when missing, malformed (for
+     * example a pre-upgrade challenge that stored only a user id) or expired.
+     */
+    private function get_2fa_challenge(string $token): ?array {
+        if ($token === '') {
+            return null;
+        }
+        $challenge = get_transient(self::challenge_key($token));
+        if (!is_array($challenge)
+            || empty($challenge['user_id'])
+            || !isset($challenge['code_hash'], $challenge['attempts'], $challenge['expires'])) {
+            return null;
+        }
+        if ((int) $challenge['expires'] <= time()) {
+            delete_transient(self::challenge_key($token));
+            return null;
+        }
+        return $challenge;
+    }
+
+    private function save_2fa_challenge(string $token, array $challenge): void {
+        $ttl = max(1, (int) $challenge['expires'] - time());
+        set_transient(self::challenge_key($token), $challenge, $ttl);
     }
 
     /**
@@ -549,33 +622,44 @@ class Security_Module {
      * Render 2FA form
      */
     public function render_2fa_form(): void {
-        $token = $_GET['token'] ?? '';
-        $user_id = get_transient('peanut_2fa_' . $token);
+        $token = self::clean_2fa_token($_GET['token'] ?? '');
+        $challenge = $this->get_2fa_challenge($token);
+        $user = $challenge ? get_user_by('ID', (int) $challenge['user_id']) : false;
 
-        if (!$user_id) {
-            wp_safe_redirect(wp_login_url());
+        if (!$challenge || !$user) {
+            wp_safe_redirect(add_query_arg('peanut_2fa', 'expired', wp_login_url()));
             exit;
         }
 
-        $user = get_user_by('ID', $user_id);
-        $error = $_GET['error'] ?? '';
+        $error = sanitize_key(wp_unslash($_GET['error'] ?? ''));
+        $remaining = max(0, self::TWO_FA_MAX_ATTEMPTS - (int) $challenge['attempts']);
 
         login_header(__('Two-Factor Authentication', 'peanut-suite'));
         ?>
-        <form name="2fa_form" id="2fa_form" action="<?php echo esc_url(wp_login_url()); ?>?action=2fa_verify" method="post">
+        <form name="2fa_form" id="2fa_form" action="<?php echo esc_url(add_query_arg('action', '2fa_verify', wp_login_url())); ?>" method="post">
             <input type="hidden" name="token" value="<?php echo esc_attr($token); ?>">
 
-            <?php if ($error): ?>
-                <div id="login_error">
-                    <?php echo esc_html__('Invalid or expired code. Please try again.', 'peanut-suite'); ?>
+            <?php if ($error === 'resend_limit'): ?>
+                <div id="login_error" role="alert">
+                    <?php esc_html_e('No more codes can be sent for this sign-in. Use the last code you received, or sign in again.', 'peanut-suite'); ?>
+                </div>
+            <?php elseif ($error): ?>
+                <div id="login_error" role="alert">
+                    <?php
+                    printf(
+                        /* translators: %d: attempts left before the code is invalidated */
+                        esc_html(_n('Invalid code. %d attempt left.', 'Invalid code. %d attempts left.', $remaining, 'peanut-suite')),
+                        (int) $remaining
+                    );
+                    ?>
                 </div>
             <?php endif; ?>
 
-            <p><?php printf(__('A verification code has been sent to %s', 'peanut-suite'), $this->mask_email($user->user_email)); ?></p>
+            <p><?php printf(esc_html__('A verification code has been sent to %s', 'peanut-suite'), esc_html($this->mask_email($user->user_email))); ?></p>
 
             <p>
                 <label for="2fa_code"><?php esc_html_e('Verification Code', 'peanut-suite'); ?></label>
-                <input type="text" name="2fa_code" id="2fa_code" class="input" size="20" autocomplete="off" autofocus>
+                <input type="text" name="2fa_code" id="2fa_code" class="input" size="20" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" autofocus>
             </p>
 
             <p class="submit">
@@ -595,29 +679,57 @@ class Security_Module {
 
     /**
      * Verify 2FA code
+     *
+     * At most TWO_FA_MAX_ATTEMPTS wrong codes per challenge; the attempt is
+     * counted before the comparison, and the challenge is destroyed when the
+     * budget is spent, so a code cannot be brute-forced within its lifetime.
      */
     public function verify_2fa_code(): void {
-        $token = $_POST['token'] ?? '';
-        $code = $_POST['2fa_code'] ?? '';
-        $user_id = get_transient('peanut_2fa_' . $token);
+        $token = self::clean_2fa_token($_POST['token'] ?? '');
+        $code = isset($_POST['2fa_code']) && is_string($_POST['2fa_code'])
+            ? preg_replace('/\D/', '', wp_unslash($_POST['2fa_code']))
+            : '';
+        $challenge = $this->get_2fa_challenge($token);
 
-        if (!$user_id) {
-            wp_safe_redirect(wp_login_url());
+        if (!$challenge) {
+            wp_safe_redirect(add_query_arg('peanut_2fa', 'expired', wp_login_url()));
             exit;
         }
 
-        $stored_hash = get_transient('peanut_2fa_code_' . $user_id);
+        if ((int) $challenge['attempts'] >= self::TWO_FA_MAX_ATTEMPTS) {
+            delete_transient(self::challenge_key($token));
+            wp_safe_redirect(add_query_arg('peanut_2fa', 'locked', wp_login_url()));
+            exit;
+        }
 
-        if ($stored_hash && wp_hash($code) === $stored_hash) {
-            // Code verified - log user in
-            delete_transient('peanut_2fa_' . $token);
-            delete_transient('peanut_2fa_code_' . $user_id);
+        // Spend the attempt first, so parallel guesses cannot share one.
+        $challenge['attempts'] = (int) $challenge['attempts'] + 1;
+        $this->save_2fa_challenge($token, $challenge);
 
+        if (strlen($code) === 6 && hash_equals((string) $challenge['code_hash'], $this->hash_2fa_code($code, $token))) {
+            delete_transient(self::challenge_key($token));
+
+            $user_id = (int) $challenge['user_id'];
             $user = get_user_by('ID', $user_id);
+            if (!$user) {
+                wp_safe_redirect(wp_login_url());
+                exit;
+            }
+
             wp_set_auth_cookie($user_id, true);
+            wp_set_current_user($user_id);
+
+            $this->completing_2fa = true;
             do_action('wp_login', $user->user_login, $user);
+            $this->completing_2fa = false;
 
             wp_safe_redirect(admin_url());
+            exit;
+        }
+
+        if ($challenge['attempts'] >= self::TWO_FA_MAX_ATTEMPTS) {
+            delete_transient(self::challenge_key($token));
+            wp_safe_redirect(add_query_arg('peanut_2fa', 'locked', wp_login_url()));
             exit;
         }
 
@@ -628,6 +740,51 @@ class Security_Module {
             'error' => 1,
         ], wp_login_url()));
         exit;
+    }
+
+    /**
+     * Resend the code ("Resend code" link): a new code replaces the old one,
+     * at most TWO_FA_MAX_RESENDS times per challenge. The attempt counter and
+     * the expiry carry over, so resending never buys more guesses or time.
+     */
+    public function resend_2fa_code(): void {
+        $token = self::clean_2fa_token($_GET['token'] ?? '');
+        $challenge = $this->get_2fa_challenge($token);
+        $user = $challenge ? get_user_by('ID', (int) $challenge['user_id']) : false;
+
+        if (!$challenge || !$user) {
+            wp_safe_redirect(add_query_arg('peanut_2fa', 'expired', wp_login_url()));
+            exit;
+        }
+
+        if ((int) ($challenge['resends'] ?? 0) >= self::TWO_FA_MAX_RESENDS) {
+            wp_safe_redirect(add_query_arg(['action' => '2fa', 'token' => $token, 'error' => 'resend_limit'], wp_login_url()));
+            exit;
+        }
+
+        $code = $this->generate_2fa_code();
+        $challenge['code_hash'] = $this->hash_2fa_code($code, $token);
+        $challenge['resends'] = (int) ($challenge['resends'] ?? 0) + 1;
+        $this->save_2fa_challenge($token, $challenge);
+        $this->send_2fa_email($user, $code);
+
+        wp_safe_redirect(add_query_arg(['action' => '2fa', 'token' => $token], wp_login_url()));
+        exit;
+    }
+
+    /**
+     * Login-page message after a 2FA challenge ended without a sign-in.
+     */
+    public function filter_2fa_login_message($message) {
+        $state = isset($_GET['peanut_2fa']) ? sanitize_key(wp_unslash($_GET['peanut_2fa'])) : '';
+        $texts = [
+            'locked' => __('Too many incorrect verification codes. Sign in again to get a new code.', 'peanut-suite'),
+            'expired' => __('Your verification code expired. Sign in again to get a new code.', 'peanut-suite'),
+        ];
+        if (!isset($texts[$state])) {
+            return $message;
+        }
+        return $message . '<div id="login_error" role="alert">' . esc_html($texts[$state]) . '</div>';
     }
 
     /**
@@ -743,6 +900,15 @@ class Security_Module {
      */
     public function update_settings(WP_REST_Request $request): WP_REST_Response {
         $data = $request->get_json_params();
+        $data = is_array($data) ? $data : [];
+
+        if (isset($data['2fa_method']) && !in_array($data['2fa_method'], self::TWO_FA_METHODS, true)) {
+            return new WP_REST_Response([
+                'success' => false,
+                'code' => 'unsupported_2fa_method',
+                'message' => __('Only e-mail codes are available for two-factor authentication. Authenticator apps (TOTP) are not supported.', 'peanut-suite'),
+            ], 400);
+        }
 
         $settings = wp_parse_args($data, $this->get_defaults());
 
@@ -754,6 +920,8 @@ class Security_Module {
         $settings['lockout_duration'] = absint($settings['lockout_duration']);
         $settings['notify_email'] = sanitize_email($settings['notify_email']);
         $settings['2fa_enabled'] = (bool) ($settings['2fa_enabled'] ?? false);
+        $settings['2fa_method'] = 'email';
+        $settings['2fa_roles'] = array_values(array_filter(array_map('sanitize_key', (array) ($settings['2fa_roles'] ?? ['administrator']))));
 
         update_option('peanut_security_settings', $settings);
         $this->settings = $settings;
