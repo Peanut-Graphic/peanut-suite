@@ -266,10 +266,13 @@ class Peanut_License {
             return $this->grace_or_free() + ['_local' => true];
         }
 
+        $hardware_id = apply_filters('peanut_license_hardware_id', '', 'peanut-suite');
+
         $response = wp_remote_post(self::LICENSE_API . '/license/validate', [
             'timeout' => 15,
             'body' => [
                 'license_key' => $key,
+                'hardware_id' => is_string($hardware_id) ? trim($hardware_id) : '',
                 'site_url' => home_url(),
                 'site_name' => get_bloginfo('name'),
                 'plugin_version' => defined('PEANUT_SUITE_VERSION') ? PEANUT_SUITE_VERSION : '1.0.0',

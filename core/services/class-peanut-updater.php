@@ -342,11 +342,9 @@ class Peanut_Updater {
         ];
 
         // Add license if available
+        $license_key = '';
         if ($this->license) {
             $license_key = $this->license->get_license_key();
-            if (!empty($license_key)) {
-                $args['license'] = $license_key;
-            }
         }
 
         // Make request
@@ -356,6 +354,7 @@ class Peanut_Updater {
                 'timeout' => 10,
                 'headers' => [
                     'Accept' => 'application/json',
+                    'X-Peanut-License-Key' => $license_key,
                 ],
             ]
         );
@@ -390,12 +389,10 @@ class Peanut_Updater {
 
         // Build query args
         $args = [];
+        $license_key = '';
 
         if ($this->license) {
             $license_key = $this->license->get_license_key();
-            if (!empty($license_key)) {
-                $args['license'] = $license_key;
-            }
         }
 
         // Make request
@@ -405,6 +402,7 @@ class Peanut_Updater {
                 'timeout' => 10,
                 'headers' => [
                     'Accept' => 'application/json',
+                    'X-Peanut-License-Key' => $license_key,
                 ],
             ]
         );
