@@ -1,5 +1,11 @@
 ## Unreleased
 
+## 4.3.3 — pending release
+
+- Add opt-in `peanut_license_hardware_id` compatibility for existing server hardware locks; no automatic rebinding.
+- Move supported license status/update request keys to headers.
+- Release is gated by the PR #98 rollout checklist and real WordPress/WooCommerce claim testing.
+
 ### Upgrade notes
 - **Every inbound webhook must now be signed.** `POST /webhooks/receive/{source}` and the deprecated `POST /webhooks/receive` refuse a delivery whose source has no signing secret (401 `signature_required`; nothing is stored or dispatched). Before upgrading, open Peanut Suite > Webhooks > Signing secrets, generate a secret for every source that posts to these URLs (the card lists sources that have delivered unsigned), and paste it into each sender. FormFlow Pro arrives as source `unknown`, so its secret goes on `unknown`. FormFlow Lite's built-in integration posts to `POST /formflow/event`, which already required a signature, and is unaffected. Refused senders are named in a wp-admin notice (administrators only) until they have a secret.
 
