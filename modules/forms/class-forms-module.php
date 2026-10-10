@@ -13,6 +13,18 @@ if (!defined('ABSPATH')) {
 
 class Forms_Module {
 
+    /** Per-client requests per minute to POST /forms/track/interaction. */
+    public const INTERACTION_RATE_LIMIT = 60;
+
+    /** Per-client requests per minute to POST /forms/track/abandon. */
+    public const ABANDON_RATE_LIMIT = 10;
+
+    /** Column width of form_id / field_name. */
+    private const KEY_MAX_LENGTH = 100;
+
+    /** Longest believable time on one field, in seconds. */
+    private const MAX_FIELD_SECONDS = 3600.0;
+
     private static ?self $instance = null;
 
     public static function instance(): self {
@@ -231,12 +243,21 @@ class Forms_Module {
      * Track field interaction
      */
     public function track_interaction(\WP_REST_Request $request): \WP_REST_Response {
+        // Public, unauthenticated write: throttle per client before any query.
+        // One request per field interaction, so the budget is wider than views.
+        if (!\Peanut_Security::check_rate_limit('form_interaction', self::INTERACTION_RATE_LIMIT, 60)) {
+            return new \WP_REST_Response(['message' => 'Rate limit exceeded'], 429);
+        }
+
         global $wpdb;
         $table = $wpdb->prefix . 'peanut_form_field_stats';
 
-        $form_id = sanitize_text_field($request->get_param('form_id'));
-        $field_name = sanitize_text_field($request->get_param('field_name'));
-        $time_spent = (float) $request->get_param('time_spent');
+        $form_id = self::clean_key($request->get_param('form_id'));
+        $field_name = self::clean_key($request->get_param('field_name'));
+        if ($form_id === '' || $field_name === '') {
+            return new \WP_REST_Response(['message' => 'form_id and field_name are required'], 400);
+        }
+        $time_spent = self::clean_seconds($request->get_param('time_spent'));
         $date = date('Y-m-d');
 
         // Upsert field stat
@@ -272,12 +293,20 @@ class Forms_Module {
      * Track form abandonment
      */
     public function track_abandonment(\WP_REST_Request $request): \WP_REST_Response {
+        // Public, unauthenticated write: same budget as a form view.
+        if (!\Peanut_Security::check_rate_limit('form_abandon', self::ABANDON_RATE_LIMIT, 60)) {
+            return new \WP_REST_Response(['message' => 'Rate limit exceeded'], 429);
+        }
+
         global $wpdb;
 
-        $form_id = sanitize_text_field($request->get_param('form_id'));
+        $form_id = self::clean_key($request->get_param('form_id'));
+        if ($form_id === '') {
+            return new \WP_REST_Response(['message' => 'form_id is required'], 400);
+        }
         $form_name = sanitize_text_field($request->get_param('form_name') ?: $form_id);
         $form_type = sanitize_text_field($request->get_param('form_type') ?: 'unknown');
-        $last_field = sanitize_text_field($request->get_param('last_field') ?: '');
+        $last_field = self::clean_key($request->get_param('last_field') ?: '');
 
         $this->increment_stat($form_id, $form_name, $form_type, 'abandonments');
 
@@ -294,6 +323,32 @@ class Forms_Module {
         }
 
         return new \WP_REST_Response(['tracked' => true], 200);
+    }
+
+    /**
+     * A form or field key from request input: sanitized, '' when not a
+     * string, and cut to the column width.
+     */
+    private static function clean_key($value): string {
+        if (!is_scalar($value)) {
+            return '';
+        }
+        return substr(sanitize_text_field((string) $value), 0, self::KEY_MAX_LENGTH);
+    }
+
+    /**
+     * Seconds spent on a field from request input, clamped to
+     * [0, MAX_FIELD_SECONDS]; non-numeric, negative or non-finite is 0.
+     */
+    private static function clean_seconds($value): float {
+        if (!is_numeric($value)) {
+            return 0.0;
+        }
+        $seconds = (float) $value;
+        if (!is_finite($seconds) || $seconds < 0) {
+            return 0.0;
+        }
+        return min($seconds, self::MAX_FIELD_SECONDS);
     }
 
     /**

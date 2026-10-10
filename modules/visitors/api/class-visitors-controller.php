@@ -293,8 +293,16 @@ class Visitors_Controller {
             return new \WP_REST_Response(['error' => 'Visitor not found'], 404);
         }
 
-        // Additional traits
-        $traits = $request->get_param('traits') ?? [];
+        // Additional traits (caller-supplied, untrusted).
+        $traits = $request->get_param('traits');
+        $traits = is_array($traits) ? $traits : [];
+
+        // This route is public, so a caller must not choose which CRM contact
+        // the visitor is linked to: a supplied contact_id would attach any
+        // visitor (and its journey) to any contact. The link is made only by
+        // server-side code that knows the contact (Visitors_Database::identify
+        // with extra data), never from request input.
+        unset($traits['contact_id']);
 
         // Check if we need to merge with existing identified visitor
         $existing = Visitors_Database::get_by_visitor_id($visitor_id);
@@ -303,13 +311,7 @@ class Visitors_Controller {
             // Just update to new email
         }
 
-        // Update visitor with email
-        $extra_data = [];
-        if (!empty($traits['contact_id'])) {
-            $extra_data['contact_id'] = absint($traits['contact_id']);
-        }
-
-        $result = Visitors_Database::identify($visitor_id, $email, $extra_data);
+        $result = Visitors_Database::identify($visitor_id, $email);
 
         if (!$result) {
             return new \WP_REST_Response(['error' => 'Failed to identify visitor'], 500);
