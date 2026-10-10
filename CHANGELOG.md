@@ -1,3 +1,11 @@
+## Unreleased
+
+### Upgrade notes
+- **Every inbound webhook must now be signed.** `POST /webhooks/receive/{source}` and the deprecated `POST /webhooks/receive` refuse a delivery whose source has no signing secret (401 `signature_required`; nothing is stored or dispatched). Before upgrading, open Peanut Suite > Webhooks > Signing secrets, generate a secret for every source that posts to these URLs (the card lists sources that have delivered unsigned), and paste it into each sender. FormFlow Pro arrives as source `unknown`, so its secret goes on `unknown`. FormFlow Lite's built-in integration posts to `POST /formflow/event`, which already required a signature, and is unaffected. Refused senders are named in a wp-admin notice (administrators only) until they have a secret.
+
+### Security
+- **Unsigned webhooks fail closed.** The public webhook receiver checked a signature only when the source had a secret, so on any site that had not configured one, anyone who knew the URL could post `enrollment.completed` to `/webhooks/receive/formflow-lite` and Suite fired `peanut_conversion` and `peanut_visitor_identify`: forged conversions, enrollments, attribution and visitor e-mail identities, around the hardened `/formflow/event`. A source with no secret is now refused. A site that must keep one non-FormFlow sender that cannot sign may opt that source in with `add_filter('peanut_webhook_allow_unsigned', fn($allow, $source) => $source === 'my-source', 10, 2)`; `formflow` and `formflow-lite` can never be opted in. The admin "Send test" button still works: it sends the administrator's REST nonce and is accepted only for a signed-in user with `manage_options` and source `test`. Refusals are recorded in `peanut_webhook_unsigned_rejections` (at most 25 sources, one write per source per hour) and returned by `GET /webhooks/signing` as `rejected_unsigned_sources`.
+
 ## 4.3.2
 
 ### Fixed

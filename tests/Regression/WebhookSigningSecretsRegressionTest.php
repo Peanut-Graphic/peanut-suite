@@ -18,8 +18,8 @@
  *  - a configured secret that cannot be decrypted fails CLOSED (401), never
  *    open;
  *  - FormFlow Lite / FormFlow signature headers verify;
- *  - sources with no secret are still accepted unsigned (unchanged product
- *    behavior), and the status lists which sources are unsigned.
+ *  - sources with no secret are refused (fail closed since the unsigned
+ *    webhook hardening), and the status lists which sources are unsigned.
  *
  * SELF-CONTAINED: pure PHP against the standalone WordPress mocks plus the
  * guarded shims below (same semantics as the sibling Regression tests).
@@ -277,7 +277,7 @@ namespace PeanutSuite\Tests\Regression {
             $this->assertFalse(get_option('peanut_webhook_secrets'));
         }
 
-        public function test_clear_removes_the_secret_and_the_source_is_unsigned_again(): void
+        public function test_clear_removes_the_secret_and_the_source_is_refused_again(): void
         {
             Webhooks_Signature::set_secret('stripe', str_repeat('k', 40));
 
@@ -285,7 +285,7 @@ namespace PeanutSuite\Tests\Regression {
 
             $this->assertSame(200, $response->status);
             $this->assertFalse(Webhooks_Signature::has_secret('stripe'));
-            $this->assertAccepted($this->receive(['source' => 'stripe', 'event' => 'x']));
+            $this->assertRejected($this->receive(['source' => 'stripe', 'event' => 'x']));
         }
 
         // -- REST: status --------------------------------------------------------
@@ -365,10 +365,10 @@ namespace PeanutSuite\Tests\Regression {
             $this->assertFalse(Webhooks_Signature::verify(json_encode($payload), 'anything', 'stripe'));
         }
 
-        public function test_unsigned_sources_are_still_accepted(): void
+        public function test_unsigned_sources_are_refused(): void
         {
-            // Unchanged product behavior: a source with no secret is accepted.
-            $this->assertAccepted($this->receive(['source' => 'custom', 'event' => 'x']));
+            // Fail closed: a source with no secret is refused (401).
+            $this->assertRejected($this->receive(['source' => 'custom', 'event' => 'x']));
         }
 
         // -- legacy plaintext ----------------------------------------------------

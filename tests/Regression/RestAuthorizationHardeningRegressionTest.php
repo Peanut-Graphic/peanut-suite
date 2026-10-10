@@ -346,15 +346,15 @@ namespace PeanutSuite\Tests\Regression {
             $this->assertCount(1, $this->storedWebhooks());
         }
 
-        public function test_receive_keeps_accepting_unsigned_webhooks_for_a_source_with_no_secret(): void
+        public function test_receive_refuses_unsigned_webhooks_for_a_source_with_no_secret(): void
         {
-            // Documented compatibility behavior: a site that never configured
-            // a secret for a source keeps receiving that source's webhooks.
+            // Fail closed: a source with no secret is refused, not accepted
+            // unsigned (see WebhookUnsignedFailClosedRegressionTest).
             $result = (new \Webhooks_Controller())->receive_webhook($this->webhookRequest(['source' => 'custom', 'event' => 'x']));
 
-            $this->assertInstanceOf(\WP_REST_Response::class, $result);
-            $this->assertSame(202, $result->status);
-            $this->assertCount(1, $this->storedWebhooks());
+            $this->assertInstanceOf(\WP_Error::class, $result);
+            $this->assertSame(401, $result->get_error_data()['status'] ?? null);
+            $this->assertCount(0, $this->storedWebhooks());
         }
 
         // ------------------------------------------------------------------

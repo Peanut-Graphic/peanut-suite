@@ -29,7 +29,10 @@ function statusBadge(row: WebhookSigningSource) {
   if (row.signed) {
     return <Badge variant="success">Signature required</Badge>;
   }
-  return <Badge variant="warning">Unsigned</Badge>;
+  if (row.allows_unsigned) {
+    return <Badge variant="warning">Unsigned (allowed by filter)</Badge>;
+  }
+  return <Badge variant="warning">No secret: rejected</Badge>;
 }
 
 export default function SigningSecretsCard() {
@@ -78,7 +81,7 @@ export default function SigningSecretsCard() {
     onSuccess: (result) => {
       refresh();
       setClearFor(null);
-      toast.success(`${result.source} now accepts unsigned webhooks`);
+      toast.success(`Secret cleared: webhooks from ${result.source} are now rejected`);
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : 'Could not clear the secret'),
   });
@@ -89,14 +92,16 @@ export default function SigningSecretsCard() {
   };
 
   const newSourceValid = SOURCE_PATTERN.test(newSource);
-  const unsigned = status?.unsigned_seen_sources ?? [];
+  const unsigned = Array.from(
+    new Set([...(status?.unsigned_seen_sources ?? []), ...(status?.rejected_unsigned_sources ?? [])])
+  ).sort();
   const endpointUrl = status?.source_endpoint_url ?? status?.endpoint_url ?? '';
 
   return (
     <Card className="mb-6">
       <CardHeader
         title="Signing secrets"
-        description="When a source has a signing secret, its webhooks must carry a valid HMAC-SHA256 signature of the request body or they are rejected. Sources without a secret are accepted unsigned."
+        description="Every webhook must carry a valid HMAC-SHA256 signature made with its source's signing secret. Webhooks from a source with no secret are rejected."
       />
 
       {unsigned.length > 0 && (
@@ -106,9 +111,9 @@ export default function SigningSecretsCard() {
         >
           <ShieldAlert className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
           <p className="text-sm text-amber-800 dark:text-amber-200">
-            {unsigned.length === 1 ? 'One source is' : `${unsigned.length} sources are`} delivering webhooks
-            without a signature: <strong>{unsigned.join(', ')}</strong>. Anyone who knows the endpoint URL can
-            post as {unsigned.length === 1 ? 'it' : 'them'}. Generate a secret and add it to the sender.
+            {unsigned.length === 1 ? 'One source has' : `${unsigned.length} sources have`} no signing secret:{' '}
+            <strong>{unsigned.join(', ')}</strong>. {unsigned.length === 1 ? 'Its' : 'Their'} webhooks are
+            rejected. Generate a secret and add it to the sender.
           </p>
         </div>
       )}
@@ -323,7 +328,7 @@ export default function SigningSecretsCard() {
         onClose={() => setClearFor(null)}
         onConfirm={() => clearFor && clearMutation.mutate(clearFor)}
         title={`Clear the secret for ${clearFor ?? ''}`}
-        message="This source will accept unsigned webhooks again, from anyone who knows the endpoint URL."
+        message="Webhooks from this source will be rejected until you set a new secret and add it to the sender."
         confirmText="Clear secret"
         variant="danger"
         loading={clearMutation.isPending}

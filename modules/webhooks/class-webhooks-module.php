@@ -37,6 +37,40 @@ class Webhooks_Module {
 
         // Daily cleanup
         add_action('peanut_daily_maintenance_tasks', [$this, 'cleanup_old_webhooks']);
+
+        // Tell administrators which senders are being refused for lack of a
+        // signing secret (unsigned webhooks fail closed).
+        add_action('admin_notices', [$this, 'render_unsigned_rejections_notice']);
+    }
+
+    /**
+     * Admin notice: unsigned webhooks were refused because their source has
+     * no signing secret. Shown to administrators until each named source has
+     * a secret, or 30 days pass without another refused delivery.
+     */
+    public function render_unsigned_rejections_notice(): void {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+
+        $sources = Webhooks_Signature::rejected_unsigned_sources();
+        if (empty($sources)) {
+            return;
+        }
+
+        $url = admin_url('admin.php?page=peanut-app#/webhooks');
+
+        printf(
+            '<div class="notice notice-warning"><p><strong>%1$s</strong> %2$s</p><p><a href="%3$s">%4$s</a></p></div>',
+            esc_html__('Peanut Suite is refusing unsigned webhooks.', 'peanut-suite'),
+            sprintf(
+                /* translators: %s: comma-separated webhook source names */
+                esc_html__('Webhooks from these sources were rejected because no signing secret is set for them: %s. Generate a secret for each source and add it to the sending application\'s webhook settings.', 'peanut-suite'),
+                '<code>' . implode('</code>, <code>', array_map('esc_html', $sources)) . '</code>'
+            ),
+            esc_url($url),
+            esc_html__('Set signing secrets', 'peanut-suite')
+        );
     }
 
     /**

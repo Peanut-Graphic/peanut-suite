@@ -377,6 +377,10 @@ export interface WebhookSigningSource {
   readable: boolean;
   /** This source has delivered at least one webhook. */
   seen: boolean;
+  /** Unsigned deliveries from this source were recently refused (no secret). */
+  rejected_unsigned?: boolean;
+  /** No secret, but the site opted this source in with peanut_webhook_allow_unsigned. */
+  allows_unsigned?: boolean;
 }
 
 export interface WebhookSigningStatus {
@@ -388,6 +392,8 @@ export interface WebhookSigningStatus {
   timestamp_tolerance?: number;
   sources: WebhookSigningSource[];
   unsigned_seen_sources: string[];
+  /** Sources whose unsigned webhooks were refused in the last 30 days. */
+  rejected_unsigned_sources?: string[];
 }
 
 export interface WebhookSigningSecretResult {

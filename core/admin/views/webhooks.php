@@ -42,7 +42,7 @@ $unsigned_sources = [];
 if (class_exists('Webhooks_Signature') && class_exists('Webhooks_Database')) {
     $seen_sources = Webhooks_Database::get_sources();
     foreach (Webhooks_Signature::sources_status(is_array($seen_sources) ? $seen_sources : []) as $signing_row) {
-        if ($signing_row['seen'] && !$signing_row['signed']) {
+        if (($signing_row['seen'] || !empty($signing_row['rejected_unsigned'])) && !$signing_row['signed'] && empty($signing_row['allows_unsigned'])) {
             $unsigned_sources[] = $signing_row['source'];
         }
     }
@@ -118,7 +118,7 @@ if (class_exists('Webhooks_Signature') && class_exists('Webhooks_Database')) {
                         <?php
                         printf(
                             /* translators: %s: comma-separated webhook source names */
-                            esc_html__('Unsigned sources: %s. Anyone who knows this URL can post as them. Set a signing secret per source on the Webhooks page of the Peanut Suite app.', 'peanut-suite'),
+                            esc_html__('Sources without a signing secret: %s. Their webhooks are refused until you set a signing secret for each one on the Webhooks page of the Peanut Suite app and add it to the sender.', 'peanut-suite'),
                             '<strong>' . esc_html(implode(', ', $unsigned_sources)) . '</strong>'
                         );
                         ?>
@@ -509,6 +509,9 @@ jQuery(document).ready(function($) {
             url: '<?php echo esc_url($webhook_url . 'test'); ?>',
             method: 'POST',
             contentType: 'application/json',
+            // Unsigned webhooks are refused; the test is accepted because it
+            // comes from a signed-in administrator (REST cookie auth + nonce).
+            headers: { 'X-WP-Nonce': '<?php echo esc_js(wp_create_nonce('wp_rest')); ?>' },
             data: JSON.stringify(payload),
             success: function(response) {
                 $('#test-result .peanut-test-result-content').html(

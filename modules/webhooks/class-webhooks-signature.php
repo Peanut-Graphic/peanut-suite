@@ -29,8 +29,14 @@
  * The source is taken from the route (POST /webhooks/receive/{source});
  * see Webhooks_Controller for the deprecated legacy route.
  *
- * Sources with NO secret configured are accepted unsigned (existing product
- * behavior); the Webhooks admin page lists them as unsigned.
+ * Sources with NO secret configured are REJECTED (fail closed, 401
+ * signature_required). Until this release they were accepted unsigned, which
+ * let anyone who knew the URL forge FormFlow conversions, enrollments,
+ * attribution and visitor identities. A rejected unsigned delivery is
+ * recorded (record_unsigned_rejection()) so the admin notice and the signing
+ * status can tell the operator which sender needs a secret. A site that must
+ * keep a non-FormFlow sender that cannot sign may opt that one source back in
+ * with the peanut_webhook_allow_unsigned filter; FormFlow sources never can.
  */
 
 if (!defined('ABSPATH')) {
@@ -51,6 +57,21 @@ class Webhooks_Signature {
     /** Senders Suite knows about; always listed in the signing status. */
     public const KNOWN_SOURCES = ['formflow-lite', 'formflow'];
 
+    /**
+     * Sources whose webhooks create conversions, enrollments and visitor
+     * identities: never accepted unsigned, whatever the filter says.
+     */
+    public const NEVER_UNSIGNED = ['formflow-lite', 'formflow'];
+
+    /** Option: source => {count, first, last} of rejected unsigned deliveries. */
+    public const REJECTIONS_OPTION = 'peanut_webhook_unsigned_rejections';
+
+    /** At most this many sources are tracked in REJECTIONS_OPTION. */
+    private const REJECTIONS_MAX_SOURCES = 25;
+
+    /** Rejections older than this no longer raise the admin notice. */
+    public const REJECTIONS_WINDOW = 30 * 86400;
+
     /** Shortest secret accepted when an admin pastes one. */
     public const MIN_SECRET_LENGTH = 16;
 
@@ -69,9 +90,9 @@ class Webhooks_Signature {
      */
     public static function verify(string $payload, string $signature, string $source): bool {
         if (!self::has_secret($source)) {
-            // No secret configured for this source: accepted unsigned
-            // (existing product behavior, see the class docblock).
-            return true;
+            // No secret configured: fail closed unless this (non-FormFlow)
+            // source was explicitly opted back in (see allows_unsigned()).
+            return self::allows_unsigned($source);
         }
 
         $secret = self::get_secret($source);
@@ -211,6 +232,85 @@ class Webhooks_Signature {
     }
 
     /**
+     * Whether a source with NO secret may still deliver unsigned webhooks.
+     *
+     * Default false (fail closed). A site can opt a single sender that cannot
+     * sign (for example a no-code tool) back in with
+     *   add_filter('peanut_webhook_allow_unsigned', fn($allow, $source) => $source === 'zapier', 10, 2);
+     * The FormFlow sources (NEVER_UNSIGNED) are never opted in: their events
+     * create conversions and identify visitors.
+     */
+    public static function allows_unsigned(string $source): bool {
+        if (in_array($source, self::NEVER_UNSIGNED, true) || !self::is_valid_source($source)) {
+            return false;
+        }
+        return true === apply_filters('peanut_webhook_allow_unsigned', false, $source);
+    }
+
+    /**
+     * Remember that an unsigned delivery for $source was rejected, so the
+     * admin notice can name the sender that needs a secret. Bounded: at most
+     * REJECTIONS_MAX_SOURCES sources (oldest evicted), and a source's row is
+     * rewritten at most once an hour, so a flood costs no write per request.
+     */
+    public static function record_unsigned_rejection(string $source, ?int $now = null): void {
+        if (!self::is_valid_source($source)) {
+            return;
+        }
+        $now = $now ?? time();
+        $rows = self::rejection_rows();
+        $row = $rows[$source] ?? null;
+
+        if (is_array($row) && ($now - (int) ($row['last'] ?? 0)) < 3600) {
+            return;
+        }
+
+        $rows[$source] = [
+            'count' => (int) ($row['count'] ?? 0) + 1,
+            'first' => (int) ($row['first'] ?? $now),
+            'last' => $now,
+        ];
+
+        if (count($rows) > self::REJECTIONS_MAX_SOURCES) {
+            uasort($rows, static fn($a, $b) => (int) $b['last'] <=> (int) $a['last']);
+            $rows = array_slice($rows, 0, self::REJECTIONS_MAX_SOURCES, true);
+        }
+
+        update_option(self::REJECTIONS_OPTION, $rows, false);
+    }
+
+    /**
+     * Sources whose unsigned deliveries were rejected within the window and
+     * that still have no secret (configuring a secret clears the warning).
+     *
+     * @return string[]
+     */
+    public static function rejected_unsigned_sources(?int $now = null): array {
+        $now = $now ?? time();
+        $sources = [];
+        foreach (self::rejection_rows() as $source => $row) {
+            $source = (string) $source;
+            if (!is_array($row) || !self::is_valid_source($source)) {
+                continue;
+            }
+            if (($now - (int) ($row['last'] ?? 0)) > self::REJECTIONS_WINDOW) {
+                continue;
+            }
+            if (self::has_secret($source) || self::allows_unsigned($source)) {
+                continue;
+            }
+            $sources[] = $source;
+        }
+        sort($sources);
+        return $sources;
+    }
+
+    private static function rejection_rows(): array {
+        $rows = get_option(self::REJECTIONS_OPTION, []);
+        return is_array($rows) ? $rows : [];
+    }
+
+    /**
      * Whether a source name can hold a secret.
      */
     public static function is_valid_source(string $source): bool {
@@ -266,11 +366,12 @@ class Webhooks_Signature {
      * source that has already delivered a webhook ($seen_sources).
      *
      * @param string[] $seen_sources Distinct sources in the webhook log.
-     * @return array<int, array{source:string, signed:bool, readable:bool, seen:bool}>
+     * @return array<int, array{source:string, signed:bool, readable:bool, seen:bool, rejected_unsigned:bool, allows_unsigned:bool}>
      */
     public static function sources_status(array $seen_sources): array {
         $seen = array_values(array_filter(array_map('strval', $seen_sources), static fn($s) => $s !== ''));
-        $sources = array_unique(array_merge(self::KNOWN_SOURCES, array_keys(self::stored()), $seen));
+        $rejected = self::rejected_unsigned_sources();
+        $sources = array_unique(array_merge(self::KNOWN_SOURCES, array_keys(self::stored()), $seen, $rejected));
         sort($sources);
 
         $status = [];
@@ -282,6 +383,8 @@ class Webhooks_Signature {
                 'signed' => $signed,
                 'readable' => $signed && self::get_secret($source) !== '',
                 'seen' => in_array($source, $seen, true),
+                'rejected_unsigned' => in_array($source, $rejected, true),
+                'allows_unsigned' => !$signed && self::allows_unsigned($source),
             ];
         }
         return $status;
