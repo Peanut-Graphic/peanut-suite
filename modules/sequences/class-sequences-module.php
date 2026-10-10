@@ -41,6 +41,207 @@ class Sequences_Module {
 
         // AJAX handlers
         add_action('wp_ajax_peanut_save_sequence', [$this, 'ajax_save_sequence']);
+
+        // Unsubscribe links in sequence emails (?peanut_unsubscribe=1&sid=&token=).
+        // The module boots on init@10, so template_redirect is still ahead.
+        add_action('template_redirect', [$this, 'handle_unsubscribe_request'], 1);
+    }
+
+    /**
+     * Signed token for a subscriber's unsubscribe link: HMAC-SHA256 under the
+     * site's auth salt over the subscriber id and the address the mail went
+     * to, so a link works only for that subscriber and cannot be forged or
+     * enumerated from the id.
+     */
+    public static function unsubscribe_token(int $subscriber_id, string $recipient): string {
+        return hash_hmac(
+            'sha256',
+            'peanut-sequence-unsubscribe|' . $subscriber_id . '|' . strtolower(trim($recipient)),
+            wp_salt('auth')
+        );
+    }
+
+    /**
+     * Unsubscribe URL for one subscriber and recipient.
+     */
+    public static function unsubscribe_url(int $subscriber_id, string $recipient): string {
+        return add_query_arg([
+            'peanut_unsubscribe' => 1,
+            'sid' => $subscriber_id,
+            'token' => self::unsubscribe_token($subscriber_id, $recipient),
+        ], home_url('/'));
+    }
+
+    /**
+     * Whether $token authorizes unsubscribing $subscriber. Accepts the current
+     * HMAC-SHA256 token, and the token format of links already sent before
+     * this handler existed (wp_hash(id . subscriber email), also keyed by the
+     * site salt), so every unsubscribe link ever mailed is honored.
+     */
+    private static function token_matches(object $subscriber, string $recipient, string $token): bool {
+        if ($token === '') {
+            return false;
+        }
+        if ($recipient !== '' && hash_equals(self::unsubscribe_token((int) $subscriber->id, $recipient), $token)) {
+            return true;
+        }
+        // Legacy links. unsubscribe() fills in an empty address, so also try
+        // the empty-address form those links were issued with.
+        return hash_equals(wp_hash($subscriber->id . $subscriber->email), $token)
+            || hash_equals(wp_hash($subscriber->id . ''), $token);
+    }
+
+    /**
+     * Handle a click on (or one-click POST to) an unsubscribe link.
+     *
+     * GET shows a confirmation button, so mail scanners that prefetch links
+     * do not unsubscribe anyone. POST unsubscribes: the confirmation form,
+     * or an RFC 8058 one-click request from the mail client
+     * (List-Unsubscribe-Post). An invalid or unknown link gets the same
+     * response for every subscriber id, so ids cannot be probed.
+     */
+    public function handle_unsubscribe_request(): void {
+        if (!isset($_GET['peanut_unsubscribe']) || (string) $_GET['peanut_unsubscribe'] !== '1') {
+            return;
+        }
+
+        nocache_headers();
+
+        $sid = isset($_GET['sid']) ? absint(wp_unslash($_GET['sid'])) : 0;
+        $token = isset($_GET['token']) && is_string($_GET['token'])
+            ? strtolower(preg_replace('/[^a-fA-F0-9]/', '', wp_unslash($_GET['token'])))
+            : '';
+
+        $subscriber = $sid > 0 ? $this->get_subscriber($sid) : null;
+        $recipient = $subscriber ? $this->recipient_for($subscriber) : '';
+
+        if (!$subscriber || !self::token_matches($subscriber, $recipient, $token)) {
+            $this->unsubscribe_response(
+                __('Unsubscribe link not valid', 'peanut-suite'),
+                __('This unsubscribe link is not valid or has been changed. Use the link from the most recent e-mail, or contact the sender.', 'peanut-suite'),
+                400
+            );
+            return;
+        }
+
+        $method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper((string) $_SERVER['REQUEST_METHOD']) : 'GET';
+
+        if ($method !== 'POST') {
+            if ($subscriber->status === 'unsubscribed') {
+                $this->unsubscribe_response(
+                    __('You are unsubscribed', 'peanut-suite'),
+                    __('You will not receive any more of these e-mails.', 'peanut-suite'),
+                    200
+                );
+                return;
+            }
+            $this->unsubscribe_response(
+                __('Unsubscribe', 'peanut-suite'),
+                __('Stop receiving these e-mails?', 'peanut-suite'),
+                200,
+                self::unsubscribe_url((int) $subscriber->id, $recipient)
+            );
+            return;
+        }
+
+        $this->unsubscribe($subscriber, $recipient);
+
+        $this->unsubscribe_response(
+            __('You are unsubscribed', 'peanut-suite'),
+            __('You will not receive any more of these e-mails.', 'peanut-suite'),
+            200
+        );
+    }
+
+    /**
+     * Unsubscribe a recipient from every sequence: stop this enrollment and
+     * every other active one for the same address or contact. The rows stay
+     * (status "unsubscribed", address filled in) and act as the suppression
+     * list that enroll() and process_sequences() honor.
+     */
+    public function unsubscribe(object $subscriber, string $recipient): void {
+        global $wpdb;
+        $table = $wpdb->prefix . 'peanut_sequence_subscribers';
+        $now = current_time('mysql');
+        $recipient = strtolower(trim($recipient));
+
+        $wpdb->update($table, [
+            'status' => 'unsubscribed',
+            'email' => $recipient !== '' ? $recipient : (string) $subscriber->email,
+            'next_send_at' => null,
+            'completed_at' => $now,
+        ], ['id' => (int) $subscriber->id]);
+
+        $contact_id = (int) ($subscriber->contact_id ?? 0);
+        $wpdb->query($wpdb->prepare(
+            "UPDATE $table SET status = 'unsubscribed', next_send_at = NULL, completed_at = %s
+             WHERE status = 'active' AND ((email <> '' AND email = %s) OR (contact_id > 0 AND contact_id = %d))",
+            $now,
+            $recipient,
+            $contact_id
+        ));
+
+        do_action('peanut_sequence_unsubscribed', (int) $subscriber->id, $recipient, $contact_id);
+    }
+
+    /**
+     * Whether a recipient unsubscribed from sequences (by address or contact).
+     */
+    public function is_suppressed(string $email, int $contact_id): bool {
+        global $wpdb;
+        $table = $wpdb->prefix . 'peanut_sequence_subscribers';
+        $email = strtolower(trim($email));
+
+        if ($email === '' && $contact_id <= 0) {
+            return false;
+        }
+
+        return (bool) $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM $table WHERE status = 'unsubscribed'
+             AND ((email <> '' AND email = %s) OR (contact_id > 0 AND contact_id = %d)) LIMIT 1",
+            $email,
+            $contact_id
+        ));
+    }
+
+    private function get_subscriber(int $sid): ?object {
+        global $wpdb;
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}peanut_sequence_subscribers WHERE id = %d",
+            $sid
+        ));
+        return is_object($row) ? $row : null;
+    }
+
+    /**
+     * The address a subscriber's mail goes to (its own, else its contact's).
+     */
+    private function recipient_for(object $subscriber): string {
+        if (!empty($subscriber->email)) {
+            return (string) $subscriber->email;
+        }
+        if (!empty($subscriber->contact_id)) {
+            global $wpdb;
+            $contact = $wpdb->get_row($wpdb->prepare(
+                "SELECT email FROM {$wpdb->prefix}peanut_contacts WHERE id = %d",
+                (int) $subscriber->contact_id
+            ));
+            return (string) ($contact->email ?? '');
+        }
+        return '';
+    }
+
+    /**
+     * Minimal standalone page (wp_die keeps it theme-independent).
+     */
+    protected function unsubscribe_response(string $title, string $message, int $status, string $confirm_url = ''): void {
+        $html = '<h1>' . esc_html($title) . '</h1><p>' . esc_html($message) . '</p>';
+        if ($confirm_url !== '') {
+            $html .= '<form method="post" action="' . esc_url($confirm_url) . '">'
+                . '<button type="submit" class="button button-primary">' . esc_html__('Unsubscribe', 'peanut-suite') . '</button>'
+                . '</form>';
+        }
+        wp_die($html, esc_html($title), ['response' => $status]);
     }
 
     /**
@@ -403,6 +604,11 @@ class Sequences_Module {
         global $wpdb;
         $table = $wpdb->prefix . 'peanut_sequence_subscribers';
 
+        // Never re-enroll someone who unsubscribed.
+        if ($this->is_suppressed($email, $contact_id)) {
+            return false;
+        }
+
         // Check if already enrolled
         $existing = $wpdb->get_var($wpdb->prepare(
             "SELECT id FROM $table WHERE sequence_id = %d AND (contact_id = %d OR email = %s)",
@@ -495,6 +701,15 @@ class Sequences_Module {
                 continue;
             }
 
+            // Honor an unsubscribe recorded in any sequence.
+            if ($this->is_suppressed($recipient, (int) $subscriber->contact_id)) {
+                $wpdb->update($subs_table, [
+                    'status' => 'unsubscribed',
+                    'next_send_at' => null,
+                ], ['id' => $subscriber->id]);
+                continue;
+            }
+
             // Send the email
             $sent = $this->send_sequence_email($recipient, $email, $subscriber);
 
@@ -523,14 +738,10 @@ class Sequences_Module {
         $subject = $this->personalize($email->subject, $contact, $to);
         $body = $this->personalize($email->body, $contact, $to);
 
-        // Add unsubscribe link
-        $unsubscribe_url = add_query_arg([
-            'peanut_unsubscribe' => 1,
-            'sid' => $subscriber->id,
-            'token' => wp_hash($subscriber->id . $subscriber->email),
-        ], home_url());
+        // Add unsubscribe link (signed; handled by handle_unsubscribe_request()).
+        $unsubscribe_url = self::unsubscribe_url((int) $subscriber->id, $to);
 
-        $body .= "\n\n<p style='font-size: 12px; color: #666;'><a href='{$unsubscribe_url}'>Unsubscribe</a></p>";
+        $body .= "\n\n<p style='font-size: 12px; color: #666;'><a href='" . esc_url($unsubscribe_url) . "'>" . esc_html__('Unsubscribe', 'peanut-suite') . "</a></p>";
 
         // Apply branding
         $branding = apply_filters('peanut_report_branding', []);
@@ -547,7 +758,12 @@ class Sequences_Module {
         </html>
         ";
 
-        $headers = ['Content-Type: text/html; charset=UTF-8'];
+        $headers = [
+            'Content-Type: text/html; charset=UTF-8',
+            // RFC 2369 / RFC 8058 one-click unsubscribe for mail clients.
+            'List-Unsubscribe: <' . esc_url_raw($unsubscribe_url) . '>',
+            'List-Unsubscribe-Post: List-Unsubscribe=One-Click',
+        ];
 
         return wp_mail($to, $subject, $html, $headers);
     }

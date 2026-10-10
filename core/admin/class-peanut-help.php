@@ -381,7 +381,7 @@ class Peanut_Help {
             </ul>
 
             <h4>' . __('Signing Secrets', 'peanut-suite') . '</h4>
-            <p>' . __('Give a source a signing secret (Webhooks page, Signing secrets) and every webhook from it must carry an HMAC-SHA256 signature of the raw request body, or it is rejected. Sources with no secret are accepted unsigned and are listed as Unsigned. Secrets are stored encrypted; a generated secret is shown once.', 'peanut-suite') . '</p>
+            <p>' . __('Give a source a signing secret (Webhooks page, Signing secrets) and every webhook from it must carry an HMAC-SHA256 signature of the raw request body, or it is rejected. A source with no secret is refused: every webhook must be signed, so set a secret for each sender before pointing it here. Secrets are stored encrypted; a generated secret is shown once.', 'peanut-suite') . '</p>
             <ul>
                 <li><strong>FormFlow Lite</strong> - ' . __('source "formflow-lite"; signs with the X-FFFL-Signature header when its webhook has a Secret.', 'peanut-suite') . '</li>
                 <li><strong>FormFlow Pro</strong> - ' . __('sends no source, so it arrives as "unknown"; signs with X-ISF-Signature. Set its secret on "unknown".', 'peanut-suite') . '</li>

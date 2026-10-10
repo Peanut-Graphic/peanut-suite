@@ -60,15 +60,45 @@ describe('SigningSecretsCard', () => {
     });
   });
 
-  it('flags unsigned sources and unreadable secrets', async () => {
+  it('flags sources without a secret as rejected, and unreadable secrets', async () => {
     renderCard();
 
     const banner = await screen.findByRole('status');
     expect(banner).toHaveTextContent('zapier');
-    expect(banner).toHaveTextContent(/without a signature/);
+    expect(banner).toHaveTextContent(/no signing secret/);
+    expect(banner).toHaveTextContent(/rejected/);
+    expect(banner).not.toHaveTextContent(/accepted unsigned/);
     expect(screen.getByText('Secret unreadable')).toBeInTheDocument();
     expect(screen.getAllByText('Signature required')).toHaveLength(1);
-    expect(screen.getAllByText('Unsigned')).toHaveLength(2);
+    expect(screen.getAllByText('No secret: rejected')).toHaveLength(2);
+    expect(screen.queryByText(/Sources without a secret are accepted unsigned/)).not.toBeInTheDocument();
+  });
+
+  it('names senders whose unsigned webhooks were refused, and filter opt-ins', async () => {
+    api.getSigningStatus.mockResolvedValue({
+      endpoint_url: 'https://suite.example/wp-json/peanut/v1/webhooks/receive',
+      sources: [
+        { source: 'formflow-lite', signed: true, readable: true, seen: true },
+        { source: 'legacy-crm', signed: false, readable: false, seen: false, rejected_unsigned: true },
+        { source: 'nocode', signed: false, readable: false, seen: true, allows_unsigned: true },
+      ],
+      unsigned_seen_sources: [],
+      rejected_unsigned_sources: ['legacy-crm'],
+    });
+    renderCard();
+
+    const banner = await screen.findByRole('status');
+    expect(banner).toHaveTextContent('legacy-crm');
+    expect(screen.getByText('Unsigned (allowed by filter)')).toBeInTheDocument();
+  });
+
+  it('warns that clearing a secret makes the source rejected', async () => {
+    renderCard();
+
+    const row = (await screen.findByText('formflow-lite', { selector: 'td' })).closest('tr') as HTMLElement;
+    fireEvent.click(within(row).getByRole('button', { name: /clear/i }));
+
+    expect(await screen.findByText(/will be rejected until you set a new secret/i)).toBeInTheDocument();
   });
 
   it('shows a generated secret once, with sender instructions', async () => {

@@ -56,7 +56,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['peanut_security_nonce
 
         if ($section === '2fa') {
             $settings['2fa_enabled'] = isset($_POST['2fa_enabled']);
-            $settings['2fa_method'] = sanitize_key($_POST['2fa_method'] ?? 'email');
+            // Only e-mail codes are implemented; TOTP never had a verifier.
+            $settings['2fa_method'] = 'email';
             $settings['2fa_roles'] = isset($_POST['2fa_roles']) ? array_map('sanitize_key', $_POST['2fa_roles']) : ['administrator'];
         }
 
@@ -357,19 +358,15 @@ $tabs = [
                 <label class="peanut-form-label"><?php esc_html_e('2FA Method', 'peanut-suite'); ?></label>
                 <div class="peanut-radio-group">
                     <label class="peanut-radio">
-                        <input type="radio" name="2fa_method" value="email" <?php checked($settings['2fa_method'], 'email'); ?>>
+                        <input type="radio" name="2fa_method" value="email" checked>
                         <span class="radio-label">
                             <strong><?php esc_html_e('Email Code', 'peanut-suite'); ?></strong>
                             <span><?php esc_html_e('Send a one-time code to the user\'s email.', 'peanut-suite'); ?></span>
                         </span>
                     </label>
-                    <label class="peanut-radio" style="margin-top: 8px;">
-                        <input type="radio" name="2fa_method" value="totp" <?php checked($settings['2fa_method'], 'totp'); ?>>
-                        <span class="radio-label">
-                            <strong><?php esc_html_e('Authenticator App (TOTP)', 'peanut-suite'); ?></strong>
-                            <span><?php esc_html_e('Use Google Authenticator, Authy, or similar apps.', 'peanut-suite'); ?></span>
-                        </span>
-                    </label>
+                    <p class="description" style="margin-top: 8px;">
+                        <?php esc_html_e('Authenticator apps (TOTP) are not supported yet. Sites that had TOTP selected now use e-mail codes.', 'peanut-suite'); ?>
+                    </p>
                 </div>
             </div>
 

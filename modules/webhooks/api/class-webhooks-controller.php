@@ -19,7 +19,8 @@ class Webhooks_Controller extends Peanut_REST_Controller {
     public function register_routes(): void {
         // Public endpoint: receive webhooks for one source. The source is
         // bound by the route; the request body/headers cannot choose it.
-        // (No auth required; signature verified when the source has a secret.)
+        // (No WordPress auth: the sender proves itself with an HMAC signature.
+        // A source with no secret is refused; see handle_delivery().)
         register_rest_route($this->namespace, '/' . $this->rest_base . '/receive/(?P<source>[A-Za-z0-9._-]{1,64})', [
             'methods' => WP_REST_Server::CREATABLE,
             'callback' => [$this, 'receive_source_webhook'],
@@ -198,14 +199,27 @@ class Webhooks_Controller extends Peanut_REST_Controller {
 
         $event = sanitize_text_field($payload['event'] ?? 'unknown');
 
-        // Verify the signature whenever a secret is configured for this source.
-        // A missing signature header is a failure, not a skip. Sources with NO
-        // secret configured are still accepted unsigned (the pre-existing
-        // behavior). A configured secret that cannot be decrypted fails closed.
+        // Every delivery must be signed with the source's secret. A missing
+        // signature header is a failure, not a skip. A source with NO secret
+        // is refused (fail closed): accepting it let anyone who knew the URL
+        // forge FormFlow conversions, enrollments and visitor identities. The
+        // only unsigned deliveries accepted are an administrator's own "Send
+        // test" (REST cookie auth + nonce, source "test") and a non-FormFlow
+        // source a site explicitly opted in (peanut_webhook_allow_unsigned).
+        // A configured secret that cannot be decrypted fails closed.
         $signature = Webhooks_Signature::get_signature_from_headers();
         $claim = null;
 
-        if (Webhooks_Signature::has_secret($source)) {
+        if (!Webhooks_Signature::has_secret($source)) {
+            if (!$this->is_admin_test_delivery($source) && !Webhooks_Signature::allows_unsigned($source)) {
+                Webhooks_Signature::record_unsigned_rejection($source);
+                return $this->error(
+                    __('This webhook source has no signing secret configured, so unsigned webhooks are refused. An administrator must set a signing secret for it on the Peanut Suite Webhooks page.', 'peanut-suite'),
+                    'signature_required',
+                    401
+                );
+            }
+        } else {
             $result = Webhooks_Signature::verify_delivery(
                 $raw_body,
                 (string) $signature,
@@ -285,6 +299,15 @@ class Webhooks_Controller extends Peanut_REST_Controller {
     }
 
     /**
+     * An administrator's own test delivery from the Webhooks page: source
+     * "test", sent with WordPress cookie auth and a wp_rest nonce (so the REST
+     * server has authenticated the user). Never matches an anonymous caller.
+     */
+    private function is_admin_test_delivery(string $source): bool {
+        return $source === 'test' && is_user_logged_in() && current_user_can('manage_options');
+    }
+
+    /**
      * Signing status: which sources require a signature, which are unsigned.
      */
     public function get_signing_status(WP_REST_Request $request): WP_REST_Response {
@@ -305,6 +328,9 @@ class Webhooks_Controller extends Peanut_REST_Controller {
             'timestamp_tolerance' => Peanut_Webhook_Replay_Guard::tolerance(),
             'sources' => $sources,
             'unsigned_seen_sources' => $unsigned_seen,
+            // Unsigned deliveries refused recently because the source has no
+            // secret: the senders an operator still needs to configure.
+            'rejected_unsigned_sources' => Webhooks_Signature::rejected_unsigned_sources(),
         ]);
     }
 
@@ -356,7 +382,8 @@ class Webhooks_Controller extends Peanut_REST_Controller {
     }
 
     /**
-     * Clear a source's signing secret (it is then accepted unsigned).
+     * Clear a source's signing secret (its webhooks are then refused until a
+     * new secret is set).
      */
     public function delete_signing_secret(WP_REST_Request $request): WP_REST_Response|WP_Error {
         $source = (string) $request->get_param('source');

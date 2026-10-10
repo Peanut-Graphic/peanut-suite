@@ -21,7 +21,7 @@
  *    does not verify on another source's route;
  *  - the deprecated POST /webhooks/receive refuses a header/body source
  *    disagreement;
- *  - unsigned sources (no secret) behave as before.
+ *  - unsigned sources (no secret) are refused and record no claim.
  *
  * SELF-CONTAINED: standalone WordPress mocks plus guarded shims (same pattern
  * as the sibling Regression tests).
@@ -359,13 +359,13 @@ namespace PeanutSuite\Tests\Regression {
             $this->assertSame(503, $result->get_error_data()['status'] ?? null);
         }
 
-        public function test_unsigned_sources_are_unchanged(): void
+        public function test_unsigned_sources_are_refused_without_a_claim(): void
         {
             $body = json_encode(['event' => 'x']);
 
-            $this->assertAccepted($this->receiveFor('custom', $body));
-            $this->assertAccepted($this->receiveFor('custom', $body));
-            $this->assertSame([], $this->wpdb->claims, 'Unsigned deliveries are not deduped (anyone can mint new ones).');
+            $this->assertRejected($this->receiveFor('custom', $body), 401, 'signature_required');
+            $this->assertSame([], $this->stored());
+            $this->assertSame([], $this->wpdb->claims, 'A refused unsigned delivery records no replay claim.');
         }
 
         // -- source binding --------------------------------------------------------
