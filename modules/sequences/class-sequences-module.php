@@ -101,7 +101,7 @@ class Sequences_Module {
      * response for every subscriber id, so ids cannot be probed.
      */
     public function handle_unsubscribe_request(): void {
-        if (empty($_GET['peanut_unsubscribe'])) {
+        if (!isset($_GET['peanut_unsubscribe']) || (string) $_GET['peanut_unsubscribe'] !== '1') {
             return;
         }
 
