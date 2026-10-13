@@ -12,7 +12,8 @@
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
-    "test:audit-contract": "node --test test/verify-dependency-audit.test.mjs"
+    "test:audit-contract": "node --test test/verify-dependency-audit.test.mjs",
+    "test:booking-auth": "npm run build && node --test test/booking-authorization.test.cjs"
   },
   "engines": {
     "node": "20",

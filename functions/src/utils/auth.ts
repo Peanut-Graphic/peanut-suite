@@ -159,6 +159,7 @@ export const verifyWebhookSignature = (
   signature: string,
   secret: string,
 ): boolean => {
+  if (!secret || typeof signature !== "string" || !/^[a-f0-9]{64}$/i.test(signature)) return false;
   const expectedSignature = crypto
     .createHmac("sha256", secret)
     .update(payload)

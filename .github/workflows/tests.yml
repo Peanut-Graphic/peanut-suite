@@ -177,6 +177,9 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Booking authorization regression
+        run: npm run test:booking-auth
+
       - name: Test dependency audit exception contract
         run: npm run test:audit-contract
 
