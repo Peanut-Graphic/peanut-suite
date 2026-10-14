@@ -35,10 +35,10 @@ runtimes:
   - name: node
     baseline: "22"
     declarations:
-      - { scope: dependency, source: "package.json, frontend/package.json, functions/package.json, and .nvmrc", value: "exact Node 20.20.0 and npm 10.8.2; no Node 22 runtime transition" }
-      - { scope: ci, source: .github/workflows/tests.yml, value: "exact Node 20.20.0 and npm 10.8.2 with fail-closed source/runtime verification" }
+      - { scope: dependency, source: "package.json, frontend/package.json, functions/package.json, and .nvmrc", value: "root/frontend Node 20.20.0/npm 10.8.2; functions source Node 22.22.2/npm 10.9.7" }
+      - { scope: ci, source: .github/workflows/tests.yml, value: "root/frontend exact Node 20.20.0/npm 10.8.2 and functions exact Node 22.22.2/npm 10.9.7 with fail-closed source/runtime verification" }
       - { scope: ci, source: .github/workflows/accessibility.yml, value: "exact Node 20.20.0 and npm 10.8.2 with fail-closed source/runtime verification" }
-      - { scope: hosting, source: functions/package.json, value: "Firebase-supported engines.node 20 family; source/CI toolchain exact at Node 20.20.0/npm 10.8.2; live runtime remains unverified" }
+      - { scope: hosting, source: functions/package.json, value: "candidate engines.node 22 family; source/CI exact Node 22.22.2/npm 10.9.7; deployed runtime unchanged and unverified" }
     production_observation: { status: unverified }
   - name: wordpress
     baseline: WordPress 6.0+
@@ -143,13 +143,14 @@ exceptions:
     review_date: "2026-11-14"
     status: proposed
   - id: ADV-001
-    concern: One open Dependabot MEDIUM advisory (uuid < 11.1.1) in functions/ now requires a coupled Node/runtime and dependency-major migration
-    reason: GHSA-w5hq-g745-h8pq requires uuid >= 11.1.1; the current functions/ tree carries uuid 9.0.1/10.0.0 through its root declaration and Google Cloud transitives. Re-verified against the npm registry on 2026-10-08 and every premise still holds - latest firebase-admin is now 14.5.0, gaxios 8.2.0 and teeny-request 11.0.1, none of them declaring uuid, all three still engines.node >=22, while functions/package.json still declares node 20 and uuid ^9.0.0. The advisory has no backport - the 9.x and 10.x lines top out at 9.0.1 and 10.0.0, and first_patched_version is 11.1.1. Forcing uuid 11 into the current graph is unverified; closing the advisory now requires one reviewed Node 22 plus firebase-admin/root-uuid major migration with installed build and behavior proof.
-    risk: Runtime scope but low -- uuid v4 generation semantics are unchanged across the majors in question, and the defect itself is a missing buffer bounds check in v3/v5/v6 when a caller supplies buf. Every call site in functions/src (venue.ts, account.ts, booking.ts, performer.ts) imports v4 alone and passes no buffer, so this repository's own code cannot reach the vulnerable path; the exposure that remains is transitive.
+    concern: Historical uuid advisory retired from the reviewed Node 22 functions source candidate
+    reason: Firebase Admin 14.5.0 removes the affected dependency graph; API IDs now use Node crypto.randomUUID. Locked candidate audits report zero production advisories; no audit waiver remains.
+    risk: Deployed Node 20 source remains separate and unverified; source qualification does not authorize Firebase promotion or data changes.
     owner: Peanut Graphic
-    verification: In an approved installed verification lane, migrate the Functions runtime contract to Node 22 and test firebase-admin ^14 plus root uuid ^11 together; verify build, emulator/API behavior, current audit, and deployment compatibility before retiring this exception.
+    verification: Candidate compilation, six isolated authorization regressions and nine audit-policy tests pass. Require exact Node 22 CI, emulator parity and reviewed recovery/promotion before deployment.
     review_date: "2026-11-06"
-    status: accepted
+    status: retired
+
 verification:
   status: live-verified
   audited_commit: f17afdd69f3ae98a8515bb713409971f456ef50e

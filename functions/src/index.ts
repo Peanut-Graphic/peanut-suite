@@ -1,10 +1,10 @@
-import * as admin from "firebase-admin";
+import { initializeApp } from "firebase-admin/app";
 import { onRequest } from "firebase-functions/v2/https";
 import express from "express";
 import cors from "cors";
 
 // Initialize Firebase Admin
-admin.initializeApp();
+initializeApp();
 
 // Import API routers
 import accountRouter from "./api/account";

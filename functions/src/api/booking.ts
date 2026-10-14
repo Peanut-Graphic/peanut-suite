@@ -1,6 +1,6 @@
 import { Router } from "express";
-import * as admin from "firebase-admin";
-import { v4 as uuidv4 } from "uuid";
+import { getFirestore, Query } from "firebase-admin/firestore";
+import { randomUUID as uuidv4 } from "node:crypto";
 import { Timestamp } from "firebase-admin/firestore";
 import {
   authenticateToken,
@@ -18,10 +18,10 @@ import {
 } from "../models/SharedBooking";
 
 const router = Router();
-const db = admin.firestore();
+const db = getFirestore();
 
 // Webhook secret for Booker/Festival (should be in env)
-const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || "peanut-webhook-secret";
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || "";
 
 /**
  * GET /api/v1/booking/for-performer/:peanutId
@@ -47,7 +47,7 @@ router.get(
         return;
       }
 
-      let bookingsRef: admin.firestore.Query = db.collection("bookings")
+      let bookingsRef: Query = db.collection("bookings")
         .where("performer_peanut_id", "==", peanutId);
 
       // Apply filters
@@ -261,16 +261,15 @@ router.patch("/:bookingId", async (req, res) => {
 
     // If not webhook, require auth
     if (!isWebhook) {
-      // This would need the middleware but for simplicity, just check header
-      const authHeader = req.headers.authorization;
-      if (!authHeader?.startsWith("Bearer ")) {
-        res.status(401).json({
-          success: false,
-          error: "Authentication required",
-          error_code: "BOOKING_401",
-        } as BookingResponse);
-        return;
-      }
+      let authenticated = false;
+      await authenticateToken(req, res, () => { authenticated = true; });
+      if (!authenticated) return;
+      let accountLoaded = false;
+      await loadPeanutAccount(req, res, () => { accountLoaded = true; });
+      if (!accountLoaded) return;
+      let accountRequired = false;
+      requirePeanutAccount(req, res, () => { accountRequired = true; });
+      if (!accountRequired) return;
     }
 
     const doc = await db.collection("bookings").doc(bookingId).get();
@@ -283,6 +282,11 @@ router.patch("/:bookingId", async (req, res) => {
       return;
     }
 
+    const booking = doc.data() as SharedBooking;
+    if (!isWebhook && booking.performer_peanut_id !== req.user?.peanutId && booking.customer_peanut_id !== req.user?.peanutId) {
+      res.status(403).json({ success: false, error: "Permission denied", error_code: "BOOKING_403" } as BookingResponse);
+      return;
+    }
     const body = req.body as UpdateBookingRequest;
     const updates: Partial<SharedBooking> = {
       updated_at: Timestamp.now(),
