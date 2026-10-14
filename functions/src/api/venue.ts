@@ -1,6 +1,6 @@
 import { Router } from "express";
-import * as admin from "firebase-admin";
-import { v4 as uuidv4 } from "uuid";
+import { getFirestore, Query } from "firebase-admin/firestore";
+import { randomUUID as uuidv4 } from "node:crypto";
 import { Timestamp } from "firebase-admin/firestore";
 import {
   authenticateToken,
@@ -17,7 +17,7 @@ import {
 import { AppSource } from "../models/PeanutAccount";
 
 const router = Router();
-const db = admin.firestore();
+const db = getFirestore();
 
 /**
  * GET /api/v1/venue
@@ -26,7 +26,7 @@ const db = admin.firestore();
 router.get("/", async (req, res) => {
   try {
     const query = req.query as VenueSearchQuery;
-    let venuesRef: admin.firestore.Query = db.collection("venues")
+    let venuesRef: Query = db.collection("venues")
       .where("is_active", "==", true);
 
     // Apply filters
@@ -80,7 +80,7 @@ router.get("/search", async (req, res) => {
 
     // For geo search, we'd need a geo-index library
     // For now, do a simple name/city search
-    const venuesRef: admin.firestore.Query = db.collection("venues")
+    const venuesRef: Query = db.collection("venues")
       .where("is_active", "==", true)
       .limit(50);
 

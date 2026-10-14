@@ -15,7 +15,8 @@ const db = { collection: name => ({ doc: id => ({
 const original = Module._load;
 Module._load = function(name, ...args) {
   if (name === 'firebase-admin') return { firestore: () => db, auth: () => ({ verifyIdToken: async token => { tokenChecks.push(token); if (token !== 'valid-token') throw Error('invalid test token'); return { uid: 'uid-a' }; } }) };
-  if (name === 'firebase-admin/firestore') return { Timestamp: { now: () => ({ seconds: 1 }), fromDate: () => ({ seconds: 1 }) } };
+  if (name === 'firebase-admin/auth') return { getAuth: () => ({ verifyIdToken: async token => { tokenChecks.push(token); if (token !== 'valid-token') throw Error('invalid test token'); return { uid: 'uid-a' }; } }) };
+  if (name === 'firebase-admin/firestore') return { getFirestore: () => db, Timestamp: { now: () => ({ seconds: 1 }), fromDate: () => ({ seconds: 1 }) } };
   return original.call(this, name, ...args);
 };
 const router = require('../lib/api/booking').default;
