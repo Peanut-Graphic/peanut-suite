@@ -1,6 +1,6 @@
 import { Router } from "express";
-import * as admin from "firebase-admin";
-import { v4 as uuidv4 } from "uuid";
+import { getFirestore, Query } from "firebase-admin/firestore";
+import { randomUUID as uuidv4 } from "node:crypto";
 import { Timestamp } from "firebase-admin/firestore";
 import {
   authenticateToken,
@@ -18,7 +18,7 @@ import {
 } from "../models/SharedBooking";
 
 const router = Router();
-const db = admin.firestore();
+const db = getFirestore();
 
 // Webhook secret for Booker/Festival (should be in env)
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || "";
@@ -47,7 +47,7 @@ router.get(
         return;
       }
 
-      let bookingsRef: admin.firestore.Query = db.collection("bookings")
+      let bookingsRef: Query = db.collection("bookings")
         .where("performer_peanut_id", "==", peanutId);
 
       // Apply filters

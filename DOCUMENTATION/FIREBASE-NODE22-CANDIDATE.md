@@ -1,0 +1,7 @@
+# Firebase Functions Node 22 source candidate
+
+Stacked on booking authorization PR 101. Functions source declares Node 22 with CI exact 22.22.2/npm 10.9.7; root/frontend retain 20.20.0/10.8.2. Firebase Admin 14.5.0 requires Node 22 and removes the affected node-forge/uuid graph. Legacy namespace calls become getFirestore/getAuth/initializeApp/FieldValue; generated UUID v4 IDs use built-in crypto.randomUUID. No collection names, schema, source IDs or customer write contracts change.
+
+Compilation, six isolated booking authorization tests, nine audit-policy tests, runtime declarations, zero-advisory production audit and real SDK API export load pass locally on Node 22.23.2/npm 10.9.8. Exact pinned CI remains required. The old uuid source waiver is removed because it no longer matches any actionable dependency. Historical ADV-001 is resolved for this source graph only.
+
+No Firebase CLI, production deploy, credentials, customer reads or writes used. This PR is a source qualification candidate. Require emulator/API parity across account/performer/venue/booking, actual control-plane runtime/revision inventory, backup/restore and reviewed exact-revision promotion/rollback before live cutover. Existing deployed runtime and authoritative APIs remain unchanged. PHP and root/frontend runtime contracts remain enforced.
