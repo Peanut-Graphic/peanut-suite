@@ -149,7 +149,7 @@ exceptions:
     owner: Peanut Graphic
     verification: Candidate compilation, six isolated authorization regressions and nine audit-policy tests pass. Require exact Node 22 CI, emulator parity and reviewed recovery/promotion before deployment.
     review_date: "2026-11-06"
-    status: resolved
+    status: retired
 
 verification:
   status: live-verified

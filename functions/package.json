@@ -13,7 +13,8 @@
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
     "test:audit-contract": "node --test test/verify-dependency-audit.test.mjs",
-    "test:booking-auth": "npm run build && node --test test/booking-authorization.test.cjs"
+    "test:booking-auth": "npm run build && node --test test/booking-authorization.test.cjs",
+    "test:emulator-parity": "node --test test/emulator-parity.cjs"
   },
   "engines": {
     "node": "22",

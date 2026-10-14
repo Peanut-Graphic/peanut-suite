@@ -180,6 +180,14 @@ jobs:
       - name: Booking authorization regression
         run: npm run test:booking-auth
 
+      - name: Demo emulator parity (Auth, Firestore, Functions)
+        run: |
+          export JAVA_HOME="$JAVA_HOME_21_X64"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          npx --yes --package firebase-tools@15.28.2 firebase emulators:exec \
+            --project demo-peanut-suite --config ../firebase.parity.json \
+            --only auth,firestore,functions "npm run test:emulator-parity"
+
       - name: Test dependency audit exception contract
         run: npm run test:audit-contract
 
