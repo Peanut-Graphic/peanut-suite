@@ -102,12 +102,27 @@ class Peanut_Updater {
      * @return string|bool|WP_Error Verified local file path, the untouched $reply, or a WP_Error.
      */
     public function verify_package_signature($reply, $package, $upgrader = null, $hook_extra = []) {
-        // Only gate OUR plugin's own GitHub-release packages; let everything else pass.
-        if (!empty($hook_extra['plugin']) && $hook_extra['plugin'] !== $this->plugin_file) {
+        if (is_wp_error($reply)) {
             return $reply;
         }
-        if (!is_string($package) || strpos($package, 'github.com/peanutgraphic/') === false) {
-            return $reply; // not one of our packages — don't interfere
+        $named = is_array($hook_extra) ? (string) ($hook_extra['plugin'] ?? '') : '';
+        if ($named !== '' && $named !== $this->plugin_file) {
+            return $reply;
+        }
+
+        $parts = is_string($package) ? parse_url($package) : false;
+        $host = is_array($parts) ? strtolower((string) ($parts['host'] ?? '')) : '';
+        $trusted = is_array($parts) && strtolower((string) ($parts['scheme'] ?? '')) === 'https'
+            && !isset($parts['user']) && !isset($parts['pass']) && !isset($parts['fragment'])
+            && (!isset($parts['port']) || $parts['port'] === 443)
+            && (in_array($host, ['peanutgraphic.com', 'www.peanutgraphic.com'], true)
+                || ($host === 'github.com' && preg_match('~^/(?:peanutgraphic|peanut-graphic)/peanut-suite/releases/download/~i', $parts['path'] ?? '')));
+        if (!$trusted) {
+            // An identified Suite update must never fall back to WP's unsigned
+            // downloader. With no identity, leave unrelated update sources alone.
+            return $named === $this->plugin_file
+                ? new WP_Error('peanut_update_signature', __('Update package came from an untrusted source — refusing to install.', 'peanut-suite'))
+                : $reply;
         }
 
         if (!function_exists('download_url')) {
@@ -129,7 +144,8 @@ class Peanut_Updater {
             return new WP_Error('peanut_update_signature', $msg);
         };
 
-        if (!is_array($manifest) || empty($manifest['sha256']) || empty($manifest['signature'])) {
+        if (!is_array($manifest) || !is_string($manifest['sha256'] ?? null)
+            || !is_string($manifest['signature'] ?? null) || $manifest['signature'] === '') {
             return $fail(__('Update signature manifest missing — refusing to install an unsigned package.', 'peanut-suite'));
         }
         if (!hash_equals((string) $manifest['sha256'], hash_file('sha256', $zip))) {
@@ -163,7 +179,7 @@ class Peanut_Updater {
      * @return bool True only if the bytes are authentically signed.
      */
     public static function verify_bytes(string $bytes, array $manifest, ?string $pubkey_b64 = null): bool {
-        if (empty($manifest['sha256']) || empty($manifest['signature'])) {
+        if (!is_string($manifest['sha256'] ?? null) || !is_string($manifest['signature'] ?? null)) {
             return false;
         }
         if (!hash_equals((string) $manifest['sha256'], hash('sha256', $bytes))) {
@@ -172,11 +188,14 @@ class Peanut_Updater {
         if (!function_exists('sodium_crypto_sign_verify_detached')) {
             return false;
         }
-        return sodium_crypto_sign_verify_detached(
-            base64_decode((string) $manifest['signature']),
-            $bytes,
-            base64_decode($pubkey_b64 ?? self::PEANUT_SIGNING_PUBKEY)
-        );
+        $signature = base64_decode($manifest['signature'], true);
+        $public_key = base64_decode($pubkey_b64 ?? self::PEANUT_SIGNING_PUBKEY, true);
+        if ($signature === false || $public_key === false
+            || strlen($signature) !== SODIUM_CRYPTO_SIGN_BYTES
+            || strlen($public_key) !== SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES) {
+            return false;
+        }
+        return sodium_crypto_sign_verify_detached($signature, $bytes, $public_key);
     }
 
     /**
@@ -342,11 +361,9 @@ class Peanut_Updater {
         ];
 
         // Add license if available
+        $license_key = '';
         if ($this->license) {
             $license_key = $this->license->get_license_key();
-            if (!empty($license_key)) {
-                $args['license'] = $license_key;
-            }
         }
 
         // Make request
@@ -356,6 +373,7 @@ class Peanut_Updater {
                 'timeout' => 10,
                 'headers' => [
                     'Accept' => 'application/json',
+                    'X-Peanut-License-Key' => $license_key,
                 ],
             ]
         );
@@ -390,12 +408,10 @@ class Peanut_Updater {
 
         // Build query args
         $args = [];
+        $license_key = '';
 
         if ($this->license) {
             $license_key = $this->license->get_license_key();
-            if (!empty($license_key)) {
-                $args['license'] = $license_key;
-            }
         }
 
         // Make request
@@ -405,6 +421,7 @@ class Peanut_Updater {
                 'timeout' => 10,
                 'headers' => [
                     'Accept' => 'application/json',
+                    'X-Peanut-License-Key' => $license_key,
                 ],
             ]
         );

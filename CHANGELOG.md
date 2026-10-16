@@ -1,3 +1,15 @@
+## 4.4.1
+
+### Security
+- Enforce signature verification for identified Suite updates on current and legacy canonical GitHub URLs and trusted update-proxy hosts; refuse untrusted sources instead of falling back to WordPress's unsigned downloader.
+- Reject malformed signature/public-key encoding and lengths without throwing a sodium exception.
+
+### Fixed
+- Forward an opt-in exact existing hardware fingerprint for license activation; no automatic identity or rebinding.
+- Send license credentials in headers for update-check and plugin-info requests while retaining package authorization and signature verification.
+- Preserve explicit license restriction denials and existing site identity.
+- Patch source-map-js and upgrade the Vitest development toolchain to 4.1.12, removing the vulnerable Tinypool dependency.
+
 ## 4.4.0
 
 ### Upgrade notes
