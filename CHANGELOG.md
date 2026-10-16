@@ -4,6 +4,7 @@
 - Forward an opt-in exact existing hardware fingerprint for license activation; no automatic identity or rebinding.
 - Send license credentials in headers for update-check and plugin-info requests while retaining package authorization and signature verification.
 - Preserve explicit license restriction denials and existing site identity.
+- Patch the source-map-js development dependency advisory.
 
 ## 4.4.0
 
