@@ -1,4 +1,5 @@
-import * as admin from "firebase-admin";
+import { getFirestore } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
 import * as crypto from "crypto";
 import { Request, Response, NextFunction } from "express";
 import { PeanutAccount } from "../models/PeanutAccount";
@@ -39,7 +40,7 @@ export const authenticateToken = async (
   const token = authHeader.split("Bearer ")[1];
 
   try {
-    const decodedToken = await admin.auth().verifyIdToken(token);
+    const decodedToken = await getAuth().verifyIdToken(token);
     req.user = {
       uid: decodedToken.uid,
     };
@@ -74,7 +75,7 @@ export const loadPeanutAccount = async (
   }
 
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
 
     // Look up Peanut ID from UID mapping
     const uidDoc = await db
@@ -159,6 +160,7 @@ export const verifyWebhookSignature = (
   signature: string,
   secret: string,
 ): boolean => {
+  if (!secret || typeof signature !== "string" || !/^[a-f0-9]{64}$/i.test(signature)) return false;
   const expectedSignature = crypto
     .createHmac("sha256", secret)
     .update(payload)

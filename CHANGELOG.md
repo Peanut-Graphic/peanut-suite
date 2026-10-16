@@ -1,4 +1,4 @@
-## Unreleased
+## 4.4.0
 
 ## 4.3.3 — pending release
 
@@ -16,6 +16,9 @@
 - **Login two-factor codes are random, attempt-limited and expire, and 2FA sign-in completes.** E-mail codes came from `mt_rand()`, and a challenge accepted unlimited guesses for its 10-minute life. Codes now come from `random_int()`, are stored only as a keyed hash bound to the challenge token, and a challenge is destroyed after 5 wrong codes or 10 minutes. A correct code also used to re-fire `wp_login`, which started a new challenge, so users were sent back to the code form and could never finish signing in; that loop is fixed. The "Resend code" link now works (at most 3 resends per sign-in; resending does not reset the attempt count or the expiry).
 - **TOTP 2FA is disabled.** The "Authenticator App (TOTP)" option was never implemented: with no secret it silently skipped 2FA, with one it locked the user out. A site that had TOTP selected now gets e-mail codes, the option is removed from the settings page, and `POST /security/settings` refuses `2fa_method: "totp"` (400 `unsupported_2fa_method`).
 - **Sequence e-mail unsubscribe links work.** Every sequence e-mail carried an Unsubscribe link, but nothing handled it, so recipients could not opt out. The link is now signed (HMAC-SHA256 under the site's auth salt over the subscriber id and recipient address) and handled: opening it shows a confirmation button (so mail scanners that prefetch links do not unsubscribe anyone), and confirming, or a one-click request from the mail client (`List-Unsubscribe` / `List-Unsubscribe-Post` headers, RFC 8058), unsubscribes the address from every sequence and blocks re-enrollment. Links mailed before this release are still honored. Fires `peanut_sequence_unsubscribed`.
+
+### Changed
+- Firebase Functions dependencies (not part of the WordPress plugin package): patched `@fastify/busboy` 3.2.2 (CRLF injection) and `proxy-addr` 2.0.8 (critical trust bypass) and renewed the ADV-001 audit exception to 2026-11-06.
 
 ## 4.3.2
 

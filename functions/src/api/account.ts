@@ -1,6 +1,6 @@
 import { Router } from "express";
-import * as admin from "firebase-admin";
-import { v4 as uuidv4 } from "uuid";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { randomUUID as uuidv4 } from "node:crypto";
 import { Timestamp } from "firebase-admin/firestore";
 import {
   authenticateToken,
@@ -19,7 +19,7 @@ import {
 } from "../models/PeanutAccount";
 
 const router = Router();
-const db = admin.firestore();
+const db = getFirestore();
 
 /**
  * POST /api/v1/account/create
@@ -358,8 +358,8 @@ router.delete(
       }
 
       await db.collection("accounts").doc(peanutId).update({
-        booker_performer_id: admin.firestore.FieldValue.delete(),
-        booker_customer_id: admin.firestore.FieldValue.delete(),
+        booker_performer_id: FieldValue.delete(),
+        booker_customer_id: FieldValue.delete(),
         updated_at: Timestamp.now(),
       });
 
